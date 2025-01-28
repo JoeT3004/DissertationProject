@@ -8,14 +8,17 @@ public class TabManager : MonoBehaviour
     public GameObject tab2Content; // Reference to Tab 2 Content
     public GameObject settingsContent; // Reference to Settings Content
 
+    public GameObject mapboxMapView;//Reference to map content
+
     // Methods to activate one tab and deactivate others
     public void ShowTab1()
     {
-        if (tab1Content && tab2Content && settingsContent) // Ensure references are assigned
+        if (tab1Content && tab2Content && settingsContent && mapboxMapView) // Ensure references are assigned
         {
             tab1Content.SetActive(true);
             tab2Content.SetActive(false);
             settingsContent.SetActive(false);
+            mapboxMapView.SetActive(true);
         }
     }
 
@@ -26,6 +29,8 @@ public class TabManager : MonoBehaviour
             tab1Content.SetActive(false);
             tab2Content.SetActive(true);
             settingsContent.SetActive(false);
+            mapboxMapView.SetActive(true);
+
         }
     }
 
@@ -36,6 +41,8 @@ public class TabManager : MonoBehaviour
             tab1Content.SetActive(false);
             tab2Content.SetActive(false);
             settingsContent.SetActive(true);
+            mapboxMapView.SetActive(false);
+
         }
     }
 }
