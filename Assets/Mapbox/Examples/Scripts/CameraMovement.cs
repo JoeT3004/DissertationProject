@@ -88,6 +88,9 @@ namespace Mapbox.Examples
 				var offset = _origin - _delta;
 				offset.y = transform.localPosition.y;
 				transform.localPosition = offset;
+
+				// Important: update the map while dragging
+				//_map.UpdateMap();
 			}
 			else
 			{

@@ -387,9 +387,17 @@ PrefabInstance:
       value: 2
       objectReference: {fileID: 0}
     - target: {fileID: 114105500206378512, guid: 35ce2bb4caba9434db5e656796b632b1, type: 3}
+      propertyPath: _tileProvider
+      value: 
+      objectReference: {fileID: 0}
+    - target: {fileID: 114105500206378512, guid: 35ce2bb4caba9434db5e656796b632b1, type: 3}
       propertyPath: _options.tileMaterial
       value: 
       objectReference: {fileID: 2100000, guid: b9f23e9bce724fa4daac57ecded470b8, type: 2}
+    - target: {fileID: 114105500206378512, guid: 35ce2bb4caba9434db5e656796b632b1, type: 3}
+      propertyPath: _previewOptions.isPreviewEnabled
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 114105500206378512, guid: 35ce2bb4caba9434db5e656796b632b1, type: 3}
       propertyPath: _options.extentOptions.extentType
       value: 1
@@ -414,10 +422,42 @@ PrefabInstance:
       propertyPath: _options.extentOptions.defaultExtents.rangeAroundTransformOptions.targetTransform
       value: 
       objectReference: {fileID: 843921208}
+    - target: {fileID: 114467468983267246, guid: 35ce2bb4caba9434db5e656796b632b1, type: 3}
+      propertyPath: _deviceLocationProviderUnity
+      value: 
+      objectReference: {fileID: 1892944599}
     - target: {fileID: 114472907270853152, guid: 35ce2bb4caba9434db5e656796b632b1, type: 3}
       propertyPath: _editorDebuggingOnly._locationLogFile
       value: 
       objectReference: {fileID: 4900000, guid: 5e6bb7224cef35c4788a4817b1c9778d, type: 3}
+    - target: {fileID: 114658503893516242, guid: 35ce2bb4caba9434db5e656796b632b1, type: 3}
+      propertyPath: _latitudeLongitude.Array.size
+      value: 5
+      objectReference: {fileID: 0}
+    - target: {fileID: 114658503893516242, guid: 35ce2bb4caba9434db5e656796b632b1, type: 3}
+      propertyPath: _latitudeLongitude.Array.data[0]
+      value: 53.407154, -2.991665
+      objectReference: {fileID: 0}
+    - target: {fileID: 114658503893516242, guid: 35ce2bb4caba9434db5e656796b632b1, type: 3}
+      propertyPath: _latitudeLongitude.Array.data[1]
+      value: 53.407154, -2.991665
+      objectReference: {fileID: 0}
+    - target: {fileID: 114658503893516242, guid: 35ce2bb4caba9434db5e656796b632b1, type: 3}
+      propertyPath: _latitudeLongitude.Array.data[2]
+      value: 53.407154, -2.991665
+      objectReference: {fileID: 0}
+    - target: {fileID: 114658503893516242, guid: 35ce2bb4caba9434db5e656796b632b1, type: 3}
+      propertyPath: _latitudeLongitude.Array.data[3]
+      value: 53.407154, -2.991665
+      objectReference: {fileID: 0}
+    - target: {fileID: 114658503893516242, guid: 35ce2bb4caba9434db5e656796b632b1, type: 3}
+      propertyPath: _latitudeLongitude.Array.data[4]
+      value: 53.407154, -2.991665
+      objectReference: {fileID: 0}
+    - target: {fileID: 114811608996724456, guid: 35ce2bb4caba9434db5e656796b632b1, type: 3}
+      propertyPath: _editorDebuggingOnly._mockUnityInputLocation
+      value: 1
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -687,6 +727,17 @@ LightingSettings:
   m_PVRTiledBaking: 0
   m_NumRaysToShootPerTexel: -1
   m_RespectSceneVisibilityWhenBakingGI: 0
+--- !u!114 &1892944599 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 114811608996724456, guid: 35ce2bb4caba9434db5e656796b632b1, type: 3}
+  m_PrefabInstance: {fileID: 843921207}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0a38712e93231418a84665190b8473d0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &1962332871
 GameObject:
   m_ObjectHideFlags: 0
