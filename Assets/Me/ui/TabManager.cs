@@ -1,48 +1,79 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.UI;
+using Mapbox.Unity.Map;
+using Mapbox.Utils;
 
 public class TabManager : MonoBehaviour
 {
-    public GameObject tab1Content; // Reference to Tab 1 Content
-    public GameObject tab2Content; // Reference to Tab 2 Content
-    public GameObject settingsContent; // Reference to Settings Content
+    public GameObject mapPanel;
+    public GameObject basePanel;
+    public GameObject settingsPanel;
 
-    public GameObject mapboxMapView;//Reference to map content
+    public AbstractMap map;
+    public Button mapButton;
+    public Button baseButton;
+    public Button settingsButton;
 
-    // Methods to activate one tab and deactivate others
-    public void ShowTab1()
+    private Vector2d specificBase = new Vector2d(40.748817, -73.985428);
+
+    void Start()
     {
-        if (tab1Content && tab2Content && settingsContent && mapboxMapView) // Ensure references are assigned
-        {
-            tab1Content.SetActive(true);
-            tab2Content.SetActive(false);
-            settingsContent.SetActive(false);
-            mapboxMapView.SetActive(true);
-        }
+        // Debug log to confirm Start() runs
+        Debug.Log("TabManager Initialized!");
+
+        // Set up button listeners
+        mapButton.onClick.AddListener(() => ButtonClicked(0));
+        baseButton.onClick.AddListener(() => ButtonClicked(1));
+        settingsButton.onClick.AddListener(() => ButtonClicked(2));
+
+        SwitchTab(0); // Default to Map View
     }
 
-    public void ShowTab2()
+    void ButtonClicked(int tabIndex)
     {
-        if (tab1Content && tab2Content && settingsContent)
-        {
-            tab1Content.SetActive(false);
-            tab2Content.SetActive(true);
-            settingsContent.SetActive(false);
-            mapboxMapView.SetActive(true);
-
-        }
+        Debug.Log($"Button {tabIndex} Clicked!");
+        SwitchTab(tabIndex);
     }
 
-    public void ShowSettings()
+    public void SwitchTab(int tabIndex)
     {
-        if (tab1Content && tab2Content && settingsContent)
-        {
-            tab1Content.SetActive(false);
-            tab2Content.SetActive(false);
-            settingsContent.SetActive(true);
-            mapboxMapView.SetActive(false);
+        Debug.Log($"Switching to tab {tabIndex}");
 
+        // Hide all panels first
+        mapPanel.SetActive(false);
+        basePanel.SetActive(false);
+        settingsPanel.SetActive(false);
+
+        bool enableMapInteraction = false;
+
+        switch (tabIndex)
+        {
+            case 0:
+                mapPanel.SetActive(true);
+                enableMapInteraction = true;
+                break;
+
+            case 1:
+                mapPanel.SetActive(true);
+                map.UpdateMap(specificBase, map.Zoom);
+                enableMapInteraction = true;
+                break;
+
+            case 2:
+                settingsPanel.SetActive(true);
+                break;
+        }
+
+        EnableMapInteractions(enableMapInteraction);
+    }
+
+    void EnableMapInteractions(bool enable)
+    {
+        if (map != null)
+        {
+            map.enabled = enable;
         }
     }
 }
