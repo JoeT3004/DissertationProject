@@ -7,10 +7,11 @@ using Mapbox.Utils;
 
 public class TabManager : MonoBehaviour
 {
+    /*
     public GameObject mapPanel;
     public GameObject basePanel;
     public GameObject settingsPanel;
-
+*/
     public AbstractMap map;
     public Button mapButton;
     public Button baseButton;
@@ -41,33 +42,26 @@ public class TabManager : MonoBehaviour
     {
         Debug.Log($"Switching to tab {tabIndex}");
 
-        // Hide all panels first
-        mapPanel.SetActive(false);
-        basePanel.SetActive(false);
-        settingsPanel.SetActive(false);
-
         bool enableMapInteraction = false;
 
         switch (tabIndex)
         {
             case 0:
-                mapPanel.SetActive(true);
                 enableMapInteraction = true;
                 break;
 
             case 1:
-                mapPanel.SetActive(true);
                 map.UpdateMap(specificBase, map.Zoom);
                 enableMapInteraction = true;
                 break;
 
             case 2:
-                settingsPanel.SetActive(true);
                 break;
         }
 
         EnableMapInteractions(enableMapInteraction);
     }
+
 
     void EnableMapInteractions(bool enable)
     {

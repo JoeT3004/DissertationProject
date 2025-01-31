@@ -1994,9 +1994,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: bb2584f5a93a6fb4e9cf3f02f180cc7d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  mapPanel: {fileID: 1117631067}
-  basePanel: {fileID: 1720840232}
-  settingsPanel: {fileID: 1553038222}
   map: {fileID: 1311461532}
   mapButton: {fileID: 2040965184}
   baseButton: {fileID: 2100675644}
