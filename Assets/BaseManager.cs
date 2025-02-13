@@ -93,36 +93,55 @@ public class BaseManager : MonoBehaviour
 
         if (hasBase)
         {
-            HidePromptPanel();
-
+            // 1) We already have a base
+            HidePromptPanel(); // promptPanel.SetActive(false)
             if (placeBaseMessage != null)
                 placeBaseMessage.SetActive(false);
 
-            // Let tabs remain unlocked
             var tm = FindObjectOfType<TabManager>();
             if (tm != null) tm.SetTabButtonsInteractable(true);
 
-            // Center map
+            // Center map on the base
             map.SetCenterLatitudeLongitude(baseCoordinates);
             map.UpdateMap();
         }
         else
         {
-            // no base => show prompt
-            if (promptPanel != null)
-                promptPanel.SetActive(true);
+            // 2) No base
+            if (isPlacingBase)
+            {
+                // We already pressed "Place Base"
+                // => keep prompt hidden, show placeBaseMessage
+                HidePromptPanel();
+                if (placeBaseMessage != null)
+                    placeBaseMessage.SetActive(true);
 
-            // let the user switch tabs if they want
-            var tm = FindObjectOfType<TabManager>();
-            if (tm != null) tm.SetTabButtonsInteractable(true);
+                // Tabs are locked from StartPlacingBase()
+            }
+            else
+            {
+                // No base and not in placing mode => show prompt
+                if (promptPanel != null)
+                    promptPanel.SetActive(true);
+
+                // Hide the "tap the map" message
+                if (placeBaseMessage != null)
+                    placeBaseMessage.SetActive(false);
+
+                var tm = FindObjectOfType<TabManager>();
+                if (tm != null) tm.SetTabButtonsInteractable(true);
+            }
         }
     }
+
 
     // ------------------------------------------------------------------------
     // Start Placing a Base
     // ------------------------------------------------------------------------
     public void StartPlacingBase()
     {
+        Debug.Log("[BaseManager] StartPlacingBase() was called!");
+
         if (hasBase)
         {
             Debug.Log("Already have a base. Cannot place again.");
@@ -131,17 +150,22 @@ public class BaseManager : MonoBehaviour
 
         HidePromptPanel();
 
-        // Show message "tap the map"
         if (placeBaseMessage != null)
             placeBaseMessage.SetActive(true);
 
-        // lock tabs while placing
         isPlacingBase = true;
-        var tm = FindObjectOfType<TabManager>();
-        if (tm != null) tm.SetTabButtonsInteractable(false);
+
+        TabManager tm = FindObjectOfType<TabManager>();
+        if (tm != null)
+        {
+            tm.SetTabButtonsInteractable(false);
+            tm.RefreshCurrentTabUI();
+        }
 
         Debug.Log("[BaseManager] Now in base-placing mode => tabs locked.");
     }
+
+
 
     private void TryPlaceBaseAtScreenPosition(Vector2 screenPos)
     {
