@@ -1,9 +1,6 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using Mapbox.Unity.Map;
-using Mapbox.Utils;
 
 public class TabManager : MonoBehaviour
 {
@@ -12,79 +9,144 @@ public class TabManager : MonoBehaviour
     public Button baseButton;
     public Button settingsButton;
 
-    [SerializeField] private Vector2d specificBase = new Vector2d(40.748817, -73.985428);
     [SerializeField] private BaseManager baseManager;
 
-    // Define Mapbox Style URLs
+    [SerializeField] private GameObject removeBaseButton;
+    [SerializeField] private GameObject showRecenterButton;
+    [SerializeField] private GameObject reloadMapCanvas;
+
     private const string DEFAULT_MAP_STYLE = "mapbox://styles/mapbox/streets-v11";
     private const string DARK_MAP_STYLE = "mapbox://styles/mapbox/dark-v10";
 
+    private int currentTabIndex = 0;
+
     void Start()
     {
-        Debug.Log("TabManager Initialized!");
-
-        // Set up button listeners
         mapButton.onClick.AddListener(() => ButtonClicked(0));
         baseButton.onClick.AddListener(() => ButtonClicked(1));
         settingsButton.onClick.AddListener(() => ButtonClicked(2));
 
-        SwitchTab(0); // Default to Map View
+        // Start on tab 0
+        SwitchTab(0);
     }
 
-    void ButtonClicked(int tabIndex)
+    private void ButtonClicked(int tabIndex)
     {
-        Debug.Log($"Button {tabIndex} Clicked!");
+        // If we're in actual "base placing mode", do NOT allow switching
+        if (baseManager.IsPlacingBase())
+        {
+            Debug.LogWarning("Cannot switch tabs while placing a base. Must finish placing first.");
+            return;
+        }
+
         SwitchTab(tabIndex);
     }
 
     public void SwitchTab(int tabIndex)
     {
-        Debug.Log($"Switching to tab {tabIndex}");
-
+        currentTabIndex = tabIndex;
         bool enableMapInteraction = false;
+        bool showReloadMap = false;
 
         switch (tabIndex)
         {
-            case 0: // Default Map View
+            case 0: // Map Tab
+                // Hide prompt if it was visible (Prompt Panel is Tab 1 only)
+                baseManager.HidePromptPanel();
+
+                // Show/Hide UI
+                showRecenterButton.SetActive(true);
+                removeBaseButton.SetActive(false);
+
+                // Reload always on Tab 0
+                showReloadMap = true;
                 enableMapInteraction = true;
                 ChangeMapStyle(DEFAULT_MAP_STYLE);
                 break;
 
             case 1: // Base Tab
+                // Show or prompt
                 baseManager.ShowBaseOnMap();
+
+                // Hide recenter
+                showRecenterButton.SetActive(false);
+
                 enableMapInteraction = true;
                 ChangeMapStyle(DARK_MAP_STYLE);
+
+                removeBaseButton.SetActive(baseManager.HasBase());
+
+                // -----------------------------------------------
+                // NEW CONDITION: We do *NOT* show reloadMapCanvas 
+                // if the user is in "placing base" mode.
+                // If promptPanel is active & not placing, we do show it.
+                // -----------------------------------------------
+                if (baseManager.IsPlacingBase())
+                {
+                    // In placing mode => Hide reload map
+                    showReloadMap = false;
+                }
+                else
+                {
+                    // If promptPanel is active => show it
+                    // (meaning user has no base, but hasn't started placing)
+                    if (baseManager.IsPromptPanelActive())
+                        showReloadMap = true;
+                    else
+                        showReloadMap = false;
+                }
                 break;
 
             case 2: // Settings Tab
-            //add toturial (will show at start of the game)
-            // customizable maps
-            // acccessibility
+                // Hide prompt
+                baseManager.HidePromptPanel();
+
+                showRecenterButton.SetActive(false);
+                removeBaseButton.SetActive(false);
+                showReloadMap = false;
+                enableMapInteraction = false;
                 break;
         }
 
         EnableMapInteractions(enableMapInteraction);
+
+        if (reloadMapCanvas != null)
+            reloadMapCanvas.SetActive(showReloadMap);
     }
 
-    void EnableMapInteractions(bool enable)
+    // Called from BaseManager after a base is placed or removed, 
+    // or any time we want to re-check the logic for the current tab
+    public void RefreshCurrentTabUI()
+    {
+        SwitchTab(currentTabIndex);
+    }
+
+    private void EnableMapInteractions(bool enable)
     {
         if (map != null)
-        {
             map.enabled = enable;
-        }
     }
 
-    void ChangeMapStyle(string styleUrl)
+    public void SetTabButtonsInteractable(bool interactable)
+    {
+        mapButton.interactable = interactable;
+        baseButton.interactable = interactable;
+        settingsButton.interactable = interactable;
+    }
+
+    private void ChangeMapStyle(string styleUrl)
     {
         if (map != null && map.ImageLayer != null)
         {
             map.ImageLayer.SetLayerSource(styleUrl);
             map.UpdateMap(map.CenterLatitudeLongitude, map.Zoom);
-            Debug.Log($"Map style changed to: {styleUrl}");
         }
         else
         {
             Debug.LogWarning("Map or ImageLayer is not properly assigned!");
         }
     }
+
+    // Expose the current tab index if needed
+    public int CurrentTabIndex => currentTabIndex;
 }

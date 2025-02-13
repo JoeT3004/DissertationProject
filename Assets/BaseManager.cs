@@ -1,22 +1,20 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using Mapbox.Unity.Map;
-using Mapbox.Unity.Utilities;
 using Mapbox.Utils;
 using Firebase.Database;
-using Firebase.Extensions; // for ContinueWithOnMainThread
+using Firebase.Extensions;
 
 public class BaseManager : MonoBehaviour
 {
     [Header("Map & Marker Setup")]
-    [SerializeField] private AbstractMap map;             // Assign your Mapbox AbstractMap here
-    [SerializeField] private GameObject baseMarkerPrefab; // Prefab for the base marker
+    [SerializeField] private AbstractMap map;
+    [SerializeField] private GameObject baseMarkerPrefab;
 
     [Header("UI References")]
-    [SerializeField] private GameObject promptPanel;      // Panel shown if no base is found
-    [SerializeField] private Button placeBaseButton;      // Button to start placing a base (optional)
+    [SerializeField] private GameObject promptPanel;     // Visible only on Tab 1 if no base
+    [SerializeField] private Button placeBaseButton;     // "Place Base" button
+    [SerializeField] private GameObject placeBaseMessage;// "Tap the map" message
 
     private bool hasBase = false;
     private bool isPlacingBase = false;
@@ -25,181 +23,298 @@ public class BaseManager : MonoBehaviour
     private Vector2d baseCoordinates;
     private GameObject currentBaseMarker;
 
-    private void Awake()
+    public bool HasBase() => hasBase;
+    public bool IsPlacingBase() => isPlacingBase;
+
+    // For TabManager logic
+    public bool IsPromptPanelActive() => promptPanel != null && promptPanel.activeSelf;
+
+    private System.Collections.IEnumerator Start()
     {
-        if (map == null)
-        {
-            Debug.LogError("BaseManager: The 'map' reference is NOT assigned! " +
-                           "Please assign an AbstractMap in the Inspector.");
-        }
-    }
+        while (!FirebaseInit.IsFirebaseReady)
+            yield return null;
 
-
-    private void Start()
-    {
-
-        DebugCheckReferences(); // <--- Add this
-
-        // Retrieve or create a local user ID
         playerId = RetrieveOrCreatePlayerId();
+        Debug.Log("[BaseManager] Local playerId: " + playerId);
 
-        // Fetch existing base data from Firebase
+        if (promptPanel != null) promptPanel.SetActive(false);
+        if (placeBaseMessage != null) placeBaseMessage.SetActive(false);
+
+        if (placeBaseButton != null) placeBaseButton.interactable = true;
+
+        // Attempt to fetch existing base
         FetchBaseFromFirebase();
-    }
-
-    private void DebugCheckReferences()
-    {
-        if (map == null)
-            Debug.LogError("BaseManager: 'map' is null! Please assign it in the Inspector.");
-        else
-            Debug.Log("BaseManager: map is assigned to '" + map.gameObject.name + "'.");
-
-        if (baseMarkerPrefab == null)
-            Debug.LogError("BaseManager: 'baseMarkerPrefab' is null! Assign a valid prefab in the Inspector.");
-        else
-            Debug.Log("BaseManager: baseMarkerPrefab is assigned to '" + baseMarkerPrefab.name + "'.");
     }
 
     private void Update()
     {
-        // Only check for input if we are in "placing base" mode
+        if (hasBase) return;
         if (!isPlacingBase) return;
 
-        // 1. Touch input for mobile
+        // check for tap
         if (Input.touchCount > 0)
         {
-            Touch touch = Input.GetTouch(0);
-
-            // Place a base on the "Began" phase
-            if (touch.phase == TouchPhase.Began)
+            Touch t = Input.GetTouch(0);
+            if (t.phase == TouchPhase.Began)
             {
-                Vector2 screenPos = touch.position;
-                TryPlaceBaseAtScreenPosition(screenPos);
+                TryPlaceBaseAtScreenPosition(t.position);
             }
         }
-        // 2. Mouse input for desktop/Editor
         else if (Input.GetMouseButtonDown(0))
         {
-            Vector2 screenPos = Input.mousePosition;
-            TryPlaceBaseAtScreenPosition(screenPos);
+            TryPlaceBaseAtScreenPosition(Input.mousePosition);
         }
     }
 
-    // LateUpdate ensures the marker is repositioned if the map moves (pan/zoom)
     private void LateUpdate()
     {
         if (hasBase && currentBaseMarker != null)
         {
-            // Correct method: Convert geo coordinates to Unity world coordinates
-            currentBaseMarker.transform.position = map.GeoToWorldPosition(baseCoordinates, true);
+            Vector3 newPos = map.GeoToWorldPosition(baseCoordinates, true);
+            currentBaseMarker.transform.position = newPos;
         }
     }
 
-
-    /// <summary>
-    /// Attempts to place the base at a given screen position (mouse/touch).
-    /// </summary>
-    private void TryPlaceBaseAtScreenPosition(Vector2 screenPos)
+    // ------------------------------------------------------------------------
+    // Utility: Hide Prompt
+    // ------------------------------------------------------------------------
+    public void HidePromptPanel()
     {
-        Vector2d latLon;
-        bool success = ScreenPositionToLatLon(screenPos, out latLon);
-
-        if (success)
-        {
-            ConfirmBaseLocation(latLon);
-            isPlacingBase = false;  // Stop placing mode
-            Debug.Log("Base placed at: " + latLon);
-        }
-        else
-        {
-            Debug.LogWarning("Failed to get lat/lon from screen position. " +
-                             "Check that the map is at y=0 or adjust the plane accordingly.");
-        }
+        if (promptPanel != null)
+            promptPanel.SetActive(false);
     }
 
-    /// <summary>
-    /// Called by the "Place Base" button on the prompt panel.
-    /// Allows the user to click/tap once to set their base.
-    /// </summary>
-    public void StartPlacingBase()
-    {
-        promptPanel.SetActive(false);
-        isPlacingBase = true;
-        Debug.Log("Now in base-placing mode. Tap/click the map to place your base.");
-    }
-
-    /// <summary>
-    /// Finalizes the lat/lon choice, spawns the marker, and saves to Firebase.
-    /// </summary>
-    public void ConfirmBaseLocation(Vector2d location)
-    {
-        hasBase = true;
-        baseCoordinates = location;
-
-        // Spawn or move the marker
-        PlaceBaseMarker(location);
-
-        // Save to Firebase
-        SaveBaseToFirebase(location);
-
-        Debug.Log($"Base confirmed at lat: {location.x}, lon: {location.y}");
-    }
-
-    private void PlaceBaseMarker(Vector2d coords)
-    {
-        // Convert the lat/lon to a Unity world position
-        Vector3 worldPos = map.GeoToWorldPosition(coords, true);
-
-        // If there is no marker yet, instantiate it
-        if (currentBaseMarker == null)
-        {
-            currentBaseMarker = Instantiate(baseMarkerPrefab, worldPos, Quaternion.identity);
-        }
-        else
-        {
-            // If we already have a marker, just reposition it
-            currentBaseMarker.transform.position = worldPos;
-        }
-    }
-
-
-    private void SaveBaseToFirebase(Vector2d coords)
-    {
-        if (FirebaseInit.DBReference == null)
-        {
-            Debug.LogWarning("Firebase DB reference not ready. Cannot save base yet.");
-            return;
-        }
-
-        FirebaseInit.DBReference.Child("bases").Child(playerId).Child("latitude").SetValueAsync(coords.x);
-        FirebaseInit.DBReference.Child("bases").Child(playerId).Child("longitude").SetValueAsync(coords.y);
-
-        Debug.Log("Base saved to Firebase at coords: " + coords);
-    }
-
-    /// <summary>
-    /// Called when user presses the "Base" tab (e.g., via a TabBar button).
-    /// Centers the map on the base if it exists.
-    /// </summary>
+    // ------------------------------------------------------------------------
+    // Tab #1: "ShowBaseOnMap"
+    // ------------------------------------------------------------------------
     public void ShowBaseOnMap()
     {
+        Debug.Log($"[BaseManager] ShowBaseOnMap called. hasBase={hasBase}");
+
         if (hasBase)
         {
+            HidePromptPanel();
+
+            if (placeBaseMessage != null)
+                placeBaseMessage.SetActive(false);
+
+            // Let tabs remain unlocked
+            var tm = FindObjectOfType<TabManager>();
+            if (tm != null) tm.SetTabButtonsInteractable(true);
+
+            // Center map
             map.SetCenterLatitudeLongitude(baseCoordinates);
             map.UpdateMap();
         }
         else
         {
-            promptPanel.SetActive(true);
+            // no base => show prompt
+            if (promptPanel != null)
+                promptPanel.SetActive(true);
+
+            // let the user switch tabs if they want
+            var tm = FindObjectOfType<TabManager>();
+            if (tm != null) tm.SetTabButtonsInteractable(true);
         }
     }
 
-    public void HidePromptPanel()
+    // ------------------------------------------------------------------------
+    // Start Placing a Base
+    // ------------------------------------------------------------------------
+    public void StartPlacingBase()
     {
-        promptPanel.SetActive(false);
+        if (hasBase)
+        {
+            Debug.Log("Already have a base. Cannot place again.");
+            return;
+        }
+
+        HidePromptPanel();
+
+        // Show message "tap the map"
+        if (placeBaseMessage != null)
+            placeBaseMessage.SetActive(true);
+
+        // lock tabs while placing
+        isPlacingBase = true;
+        var tm = FindObjectOfType<TabManager>();
+        if (tm != null) tm.SetTabButtonsInteractable(false);
+
+        Debug.Log("[BaseManager] Now in base-placing mode => tabs locked.");
     }
 
-    // -- Utility & Firebase methods below -----------------------------------
+    private void TryPlaceBaseAtScreenPosition(Vector2 screenPos)
+    {
+        if (placeBaseMessage != null)
+            placeBaseMessage.SetActive(false);
+
+        bool success = ScreenPositionToLatLon(screenPos, out Vector2d latLon);
+        if (success)
+        {
+            ConfirmBaseLocation(latLon);
+            isPlacingBase = false;
+        }
+        else
+        {
+            Debug.LogWarning("[BaseManager] Could not place base, missed plane?");
+        }
+    }
+
+    private void ConfirmBaseLocation(Vector2d location)
+    {
+        if (hasBase)
+        {
+            Debug.Log("We already have a base, ignoring placement.");
+            return;
+        }
+
+        hasBase = true;
+        baseCoordinates = location;
+        PlaceBaseMarker(location);
+        SaveBaseToFirebase(location);
+
+        if (placeBaseButton != null)
+            placeBaseButton.interactable = false;
+
+        Debug.Log($"[BaseManager] Base confirmed at {location.x},{location.y}");
+
+        // done placing => unlock tabs
+        var tm = FindObjectOfType<TabManager>();
+        if (tm != null)
+        {
+            tm.SetTabButtonsInteractable(true);
+            // **Important** to re-run SwitchTab(1) logic => hides reload if we are on Tab 1
+            tm.RefreshCurrentTabUI();
+        }
+    }
+
+    // ------------------------------------------------------------------------
+    // Remove Base
+    // ------------------------------------------------------------------------
+    public void RemoveBase()
+    {
+        if (!hasBase)
+        {
+            Debug.Log("[BaseManager] No base to remove.");
+            return;
+        }
+
+        if (FirebaseInit.DBReference == null)
+        {
+            Debug.LogWarning("[BaseManager] DB ref is null.");
+            return;
+        }
+
+        FirebaseInit.DBReference.Child("bases").Child(playerId).RemoveValueAsync()
+            .ContinueWithOnMainThread(task =>
+            {
+                if (task.IsFaulted || task.IsCanceled)
+                {
+                    Debug.LogWarning("[BaseManager] Remove base failed!");
+                    return;
+                }
+
+                Debug.Log("[BaseManager] Base removed from Firebase.");
+
+                hasBase = false;
+                if (currentBaseMarker != null)
+                {
+                    Destroy(currentBaseMarker);
+                    currentBaseMarker = null;
+                }
+
+                if (placeBaseButton != null)
+                    placeBaseButton.interactable = true;
+
+                // If user is on Tab 1 => show prompt again
+                var tm = FindObjectOfType<TabManager>();
+                if (tm != null && tm.CurrentTabIndex == 1)
+                {
+                    ShowBaseOnMap();   // shows prompt
+                    tm.RefreshCurrentTabUI();
+                }
+            });
+    }
+
+    // ------------------------------------------------------------------------
+    // Firebase
+    // ------------------------------------------------------------------------
+    private void PlaceBaseMarker(Vector2d coords)
+    {
+        Vector3 wPos = map.GeoToWorldPosition(coords, true);
+        if (currentBaseMarker == null)
+        {
+            currentBaseMarker = Instantiate(baseMarkerPrefab, wPos, Quaternion.identity);
+        }
+        else
+        {
+            currentBaseMarker.transform.position = wPos;
+        }
+    }
+
+    private void SaveBaseToFirebase(Vector2d coords)
+    {
+        if (FirebaseInit.DBReference == null)
+        {
+            Debug.LogWarning("[BaseManager] DB not ready, skipping save.");
+            return;
+        }
+
+        FirebaseInit.DBReference.Child("bases").Child(playerId).Child("latitude").SetValueAsync(coords.x);
+        FirebaseInit.DBReference.Child("bases").Child(playerId).Child("longitude").SetValueAsync(coords.y);
+        Debug.Log("[BaseManager] Base saved to Firebase at coords " + coords);
+    }
+
+    private void FetchBaseFromFirebase()
+    {
+        if (FirebaseInit.DBReference == null)
+        {
+            Debug.LogWarning("[BaseManager] Firebase not ready.");
+            return;
+        }
+
+        Debug.Log("[BaseManager] Fetching base for " + playerId);
+
+        FirebaseInit.DBReference.Child("bases").Child(playerId).GetValueAsync()
+            .ContinueWithOnMainThread(task =>
+            {
+                if (task.IsFaulted || task.IsCanceled)
+                {
+                    Debug.LogWarning("[BaseManager] Fetch base failed.");
+                    return;
+                }
+
+                var snap = task.Result;
+                if (!snap.Exists || !snap.HasChildren)
+                {
+                    Debug.Log("[BaseManager] No base found for " + playerId);
+                    hasBase = false;
+                    return;
+                }
+
+                hasBase = true;
+                double lat = double.Parse(snap.Child("latitude").Value.ToString());
+                double lon = double.Parse(snap.Child("longitude").Value.ToString());
+                baseCoordinates = new Vector2d(lat, lon);
+                PlaceBaseMarker(baseCoordinates);
+                Debug.Log("[BaseManager] Found existing base in DB.");
+            });
+    }
+
+    private bool ScreenPositionToLatLon(Vector2 screenPos, out Vector2d latLon)
+    {
+        latLon = Vector2d.zero;
+        var groundPlane = new Plane(Vector3.up, Vector3.zero);
+        var ray = Camera.main.ScreenPointToRay(screenPos);
+
+        if (groundPlane.Raycast(ray, out float distance))
+        {
+            Vector3 hitPos = ray.GetPoint(distance);
+            latLon = map.WorldToGeoPosition(hitPos);
+            return true;
+        }
+        return false;
+    }
 
     private string RetrieveOrCreatePlayerId()
     {
@@ -209,74 +324,6 @@ public class BaseManager : MonoBehaviour
             PlayerPrefs.SetString("playerId", newId);
             return newId;
         }
-        else
-        {
-            return PlayerPrefs.GetString("playerId");
-        }
-    }
-
-    private void FetchBaseFromFirebase()
-    {
-        if (FirebaseInit.DBReference == null)
-        {
-            Debug.LogWarning("Firebase not initialized yet. Delaying base fetch.");
-            return;
-        }
-
-        FirebaseInit.DBReference.Child("bases").Child(playerId).GetValueAsync()
-            .ContinueWithOnMainThread(task =>
-            {
-                if (!task.IsFaulted && task.IsCompleted)
-                {
-                    DataSnapshot snapshot = task.Result;
-                    if (snapshot.Exists && snapshot.HasChildren)
-                    {
-                        // We have a base
-                        hasBase = true;
-
-                        double lat = double.Parse(snapshot.Child("latitude").Value.ToString());
-                        double lon = double.Parse(snapshot.Child("longitude").Value.ToString());
-                        baseCoordinates = new Vector2d(lat, lon);
-
-                        PlaceBaseMarker(baseCoordinates);
-                    }
-                    else
-                    {
-                        // No base found
-                        hasBase = false;
-                        promptPanel.SetActive(true);
-                    }
-                }
-                else
-                {
-                    Debug.LogError("Error fetching base from Firebase.");
-                }
-            });
-    }
-
-    /// <summary>
-    /// Converts a 2D screen position (mouse or touch) to lat/lon by projecting
-    /// a ray onto a ground plane at y=0, then calling map.WorldToGeoPosition().
-    /// 
-    /// If your map is offset or rotated, update the plane's normal/position accordingly.
-    /// </summary>
-    private bool ScreenPositionToLatLon(Vector2 screenPos, out Vector2d latLon)
-    {
-        latLon = Vector2d.zero;
-
-        // If your map is at y=0, using Vector3.up + Vector3.zero is fine:
-        Plane groundPlane = new Plane(Vector3.up, Vector3.zero);
-
-        Ray ray = Camera.main.ScreenPointToRay(screenPos);
-
-        float distance;
-        if (groundPlane.Raycast(ray, out distance))
-        {
-            Vector3 hitPos = ray.GetPoint(distance);
-            latLon = map.WorldToGeoPosition(hitPos);
-            return true;
-        }
-
-        return false;
+        return PlayerPrefs.GetString("playerId");
     }
 }
