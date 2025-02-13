@@ -19,6 +19,18 @@ public class TabManager : MonoBehaviour
     [SerializeField] private GameObject showRecenterButton;
     [SerializeField] private GameObject reloadMapCanvas;
 
+    [SerializeField] private GameObject settingsPanel; // The new opaque panel for tab 2
+
+    [SerializeField] private GameObject score;
+
+    [SerializeField] private Button removeBaseUIButton; // The actual 'Remove Base' button in Settings Panel
+    [SerializeField] private GameObject removeBaseConfirmPanel; // The confirmation panel
+    [SerializeField] private Button yesRemoveBaseButton;        // The 'Yes' button inside removeBaseConfirmPanel
+    [SerializeField] private Button noRemoveBaseButton;         // The 'No' button inside removeBaseConfirmPanel
+
+
+
+
     private const string DEFAULT_MAP_STYLE = "mapbox://styles/mapbox/streets-v11";
     private const string DARK_MAP_STYLE = "mapbox://styles/mapbox/dark-v10";
 
@@ -48,13 +60,31 @@ public class TabManager : MonoBehaviour
     void Start()
     {
 
+
+
         mapButton.onClick.AddListener(() => ButtonClicked(0));
         baseButton.onClick.AddListener(() => ButtonClicked(1));
         settingsButton.onClick.AddListener(() => ButtonClicked(2));
 
         // Start on tab 0
         SwitchTab(0);
+
+
+        // 1) Clear any default listeners
+        removeBaseUIButton.onClick.RemoveAllListeners();
+
+        // 2) Show the confirm panel when user clicks "Remove Base"
+        removeBaseUIButton.onClick.AddListener(OnRemoveBaseButtonClicked);
+
+        // 3) Confirm/Cancel buttons inside the confirm panel
+        yesRemoveBaseButton.onClick.RemoveAllListeners();
+        yesRemoveBaseButton.onClick.AddListener(ConfirmRemoveBase);
+
+        noRemoveBaseButton.onClick.RemoveAllListeners();
+        noRemoveBaseButton.onClick.AddListener(CancelRemoveBase);
     }
+
+
 
     private void ButtonClicked(int tabIndex)
     {
@@ -77,10 +107,13 @@ public class TabManager : MonoBehaviour
         switch (tabIndex)
         {
             case 0: // Map Tab
+                if (settingsPanel != null) settingsPanel.SetActive(false);
+
                 baseManager.HidePromptPanel();
 
                 showRecenterButton.SetActive(true);
                 removeBaseButton.SetActive(false);
+                score.SetActive(true);
                 showReloadMap = true;
                 enableMapInteraction = true;
 
@@ -88,16 +121,21 @@ public class TabManager : MonoBehaviour
 
                 // Always enable panning on tab 0
                 EnableQuadTreeCameraMovement(true);
+                removeBaseConfirmPanel.SetActive(false);
 
                 break;
 
             case 1: // Base Tab
+                if (settingsPanel != null) settingsPanel.SetActive(false);
+
                 baseManager.ShowBaseOnMap();
 
                 showRecenterButton.SetActive(false);
+                score.SetActive(true);
                 enableMapInteraction = true;
                 ChangeMapStyle(DARK_MAP_STYLE);
                 removeBaseButton.SetActive(baseManager.HasBase());
+                removeBaseConfirmPanel.SetActive(false);
 
                 // If user is in placing mode => hide reloadMapCanvas
                 if (baseManager.IsPlacingBase())
@@ -134,14 +172,30 @@ public class TabManager : MonoBehaviour
                 baseManager.HidePromptPanel();
 
                 showRecenterButton.SetActive(false);
-                removeBaseButton.SetActive(false);
+                score.SetActive(false);
+
                 showReloadMap = false;
                 enableMapInteraction = false;
 
-                // Re-enable panning in settings if you want, or keep it disabled
+                // Optional: disable panning in settings
                 EnableQuadTreeCameraMovement(false);
 
+                // Show the SettingsPanel
+                if (settingsPanel != null)
+                    settingsPanel.SetActive(true);
+
+                // ** Show or hide RemoveBaseButton inside settingsPanel **
+                if (baseManager.HasBase())
+                {
+                    removeBaseButton.SetActive(true);
+                }
+                else
+                {
+                    removeBaseButton.SetActive(false);
+                }
                 break;
+
+
         }
 
         EnableMapInteractions(enableMapInteraction);
@@ -183,6 +237,25 @@ public class TabManager : MonoBehaviour
         {
             Debug.LogWarning("Map or ImageLayer is not properly assigned!");
         }
+    }
+
+    private void OnRemoveBaseButtonClicked()
+    {
+        // Show the confirmation panel
+        removeBaseConfirmPanel.SetActive(true);
+    }
+
+    // "Yes" => call BaseManager.RemoveBase(), then hide the panel
+    private void ConfirmRemoveBase()
+    {
+        baseManager.RemoveBase();
+        removeBaseConfirmPanel.SetActive(false);
+    }
+
+    // "No" => do nothing except hide the panel
+    private void CancelRemoveBase()
+    {
+        removeBaseConfirmPanel.SetActive(false);
     }
 
     // Expose the current tab index if needed
