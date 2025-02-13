@@ -21,8 +21,17 @@ public class RecenterButton : MonoBehaviour
         {
             Debug.LogWarning("No LocationProviderFactory.Instance available in Start");
         }
+
+        // Call the recenter method automatically at the start
+        StartCoroutine(InvokeRecenterAfterDelay());
     }
 
+    IEnumerator InvokeRecenterAfterDelay()
+    {
+        // Ensure there's a slight delay to allow Mapbox to initialize
+        yield return new WaitForSeconds(1.0f);
+        OnRecenterButtonPressed();
+    }
 
     // This method can be called by your UI Button's OnClick event
     public void OnRecenterButtonPressed()
@@ -45,5 +54,4 @@ public class RecenterButton : MonoBehaviour
             Debug.LogWarning("No valid location or service disabled.");
         }
     }
-
 }
