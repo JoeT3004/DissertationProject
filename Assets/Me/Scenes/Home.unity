@@ -3282,6 +3282,7 @@ MonoBehaviour:
   removeBaseButton: {fileID: 731040106}
   showRecenterButton: {fileID: 277794692}
   reloadMapCanvas: {fileID: 1759933921}
+  baseViewZoomLevel: 13
 --- !u!4 &1325874029
 Transform:
   m_ObjectHideFlags: 0

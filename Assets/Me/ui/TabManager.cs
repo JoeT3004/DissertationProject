@@ -1,6 +1,10 @@
 using UnityEngine;
 using UnityEngine.UI;
 using Mapbox.Unity.Map;
+using Mapbox.Examples;
+
+using System;
+
 
 public class TabManager : MonoBehaviour
 {
@@ -20,8 +24,30 @@ public class TabManager : MonoBehaviour
 
     private int currentTabIndex = 0;
 
+
+
+    [SerializeField, Range(1, 21)]
+    private float baseViewZoomLevel = 16f; // or your preferred default
+
+    
+
+    private void EnableQuadTreeCameraMovement(bool enable)
+    {
+        if (map != null)
+        {
+            var quadTree = map.GetComponent<QuadTreeCameraMovement>();
+            if (quadTree != null)
+            {
+                quadTree.enabled = enable;
+            }
+        }
+    }
+
+
+
     void Start()
     {
+
         mapButton.onClick.AddListener(() => ButtonClicked(0));
         baseButton.onClick.AddListener(() => ButtonClicked(1));
         settingsButton.onClick.AddListener(() => ButtonClicked(2));
@@ -51,68 +77,80 @@ public class TabManager : MonoBehaviour
         switch (tabIndex)
         {
             case 0: // Map Tab
-                // Hide prompt if it was visible (Prompt Panel is Tab 1 only)
                 baseManager.HidePromptPanel();
 
-                // Show/Hide UI
                 showRecenterButton.SetActive(true);
                 removeBaseButton.SetActive(false);
-
-                // Reload always on Tab 0
                 showReloadMap = true;
                 enableMapInteraction = true;
+
                 ChangeMapStyle(DEFAULT_MAP_STYLE);
+
+                // Always enable panning on tab 0
+                EnableQuadTreeCameraMovement(true);
+
                 break;
 
             case 1: // Base Tab
-                // Show or prompt
                 baseManager.ShowBaseOnMap();
 
-                // Hide recenter
                 showRecenterButton.SetActive(false);
-
                 enableMapInteraction = true;
                 ChangeMapStyle(DARK_MAP_STYLE);
-
                 removeBaseButton.SetActive(baseManager.HasBase());
 
-                // -----------------------------------------------
-                // NEW CONDITION: We do *NOT* show reloadMapCanvas 
-                // if the user is in "placing base" mode.
-                // If promptPanel is active & not placing, we do show it.
-                // -----------------------------------------------
+                // If user is in placing mode => hide reloadMapCanvas
                 if (baseManager.IsPlacingBase())
                 {
-                    // In placing mode => Hide reload map
                     showReloadMap = false;
                 }
                 else
                 {
-                    // If promptPanel is active => show it
-                    // (meaning user has no base, but hasn't started placing)
+                    // If promptPanel is active => show reload
                     if (baseManager.IsPromptPanelActive())
                         showReloadMap = true;
                     else
                         showReloadMap = false;
                 }
+
+                // --- Disable or enable panning here ---
+                if (baseManager.HasBase())
+                {
+                    // 1) Disable the QuadTreeCameraMovement
+                    EnableQuadTreeCameraMovement(false);
+
+                    // 2) Set a specific zoom level
+                    map.UpdateMap(map.CenterLatitudeLongitude, baseViewZoomLevel);
+                }
+                else
+                {
+                    // No base => we allow the user to still pan around
+                    EnableQuadTreeCameraMovement(true);
+                }
+
                 break;
 
             case 2: // Settings Tab
-                // Hide prompt
                 baseManager.HidePromptPanel();
 
                 showRecenterButton.SetActive(false);
                 removeBaseButton.SetActive(false);
                 showReloadMap = false;
                 enableMapInteraction = false;
+
+                // Re-enable panning in settings if you want, or keep it disabled
+                EnableQuadTreeCameraMovement(false);
+
                 break;
         }
 
         EnableMapInteractions(enableMapInteraction);
 
+        // Show/hide reloadCanvas
         if (reloadMapCanvas != null)
             reloadMapCanvas.SetActive(showReloadMap);
     }
+
 
     // Called from BaseManager after a base is placed or removed, 
     // or any time we want to re-check the logic for the current tab
