@@ -16,6 +16,7 @@ public class BaseManager : MonoBehaviour
     [SerializeField] private Button placeBaseButton;     // "Place Base" button
     [SerializeField] private GameObject placeBaseMessage;// "Tap the map" message
 
+
     private bool hasBase = false;
     private bool isPlacingBase = false;
 
@@ -28,6 +29,11 @@ public class BaseManager : MonoBehaviour
 
     // For TabManager logic
     public bool IsPromptPanelActive() => promptPanel != null && promptPanel.activeSelf;
+
+    private int currentHealth;
+    private int currentLevel;
+
+    
 
     private System.Collections.IEnumerator Start()
     {
@@ -284,10 +290,21 @@ public class BaseManager : MonoBehaviour
             return;
         }
 
-        FirebaseInit.DBReference.Child("bases").Child(playerId).Child("latitude").SetValueAsync(coords.x);
-        FirebaseInit.DBReference.Child("bases").Child(playerId).Child("longitude").SetValueAsync(coords.y);
-        Debug.Log("[BaseManager] Base saved to Firebase at coords " + coords);
+        // We'll assume that whenever we create a new base, 
+        // we set health=100 and level=1 by default.
+
+        DatabaseReference baseRef = FirebaseInit.DBReference.Child("bases").Child(playerId);
+
+        baseRef.Child("latitude").SetValueAsync(coords.x);
+        baseRef.Child("longitude").SetValueAsync(coords.y);
+
+        // New fields:
+        baseRef.Child("health").SetValueAsync(100); // default health
+        baseRef.Child("level").SetValueAsync(1);    // default level
+
+        Debug.Log("[BaseManager] Base saved to Firebase with defaults: health=100, level=1");
     }
+
 
     private void FetchBaseFromFirebase()
     {
@@ -316,14 +333,34 @@ public class BaseManager : MonoBehaviour
                     return;
                 }
 
+                // We do have a base. Let's parse data:
                 hasBase = true;
+
                 double lat = double.Parse(snap.Child("latitude").Value.ToString());
                 double lon = double.Parse(snap.Child("longitude").Value.ToString());
                 baseCoordinates = new Vector2d(lat, lon);
+
+                // Also retrieve health and level if they exist, else default to something
+                int baseHealth = 100;  // default
+                if (snap.HasChild("health"))
+                {
+                    baseHealth = int.Parse(snap.Child("health").Value.ToString());
+                }
+
+                int baseLevel = 1;  // default
+                if (snap.HasChild("level"))
+                {
+                    baseLevel = int.Parse(snap.Child("level").Value.ToString());
+                }
+
+                // (Optional) Store these in your BaseManager if you want to track them
+                Debug.Log($"[BaseManager] Found existing base. Health={baseHealth}, Level={baseLevel}");
+
+                // Place the base marker
                 PlaceBaseMarker(baseCoordinates);
-                Debug.Log("[BaseManager] Found existing base in DB.");
             });
     }
+
 
     private bool ScreenPositionToLatLon(Vector2 screenPos, out Vector2d latLon)
     {
@@ -350,4 +387,27 @@ public class BaseManager : MonoBehaviour
         }
         return PlayerPrefs.GetString("playerId");
     }
+
+    public void UpgradeBase()
+    {
+        if (!hasBase)
+        {
+            Debug.LogWarning("[BaseManager] Cannot upgrade. No base found for this player.");
+            return;
+        }
+
+        // Possibly you'd check resources, cost, etc. But for now, we just increment.
+        currentLevel += 1;
+
+        // Optionally update health. Let's say each level adds 50 max health:
+        currentHealth += 50;
+
+        // Now push the changes to Firebase:
+        DatabaseReference baseRef = FirebaseInit.DBReference.Child("bases").Child(playerId);
+        baseRef.Child("health").SetValueAsync(currentHealth);
+        baseRef.Child("level").SetValueAsync(currentLevel);
+
+        Debug.Log($"[BaseManager] Base upgraded! New level={currentLevel}, new health={currentHealth}.");
+    }
+
 }
