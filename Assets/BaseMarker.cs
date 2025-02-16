@@ -6,13 +6,25 @@ public class BaseMarker : MonoBehaviour
 {
     public string PlayerId { get; private set; }
 
-    // We'll call this once we know which user owns the marker
+    // Additional optional fields for storing stats
+    [SerializeField] public int Health { get; private set; }
+    [SerializeField] public int Level { get; private set; }
+
     public void Initialize(string playerId)
     {
         PlayerId = playerId;
-        // If you want to visually differentiate your own base from others, 
-        // you could change the color or label here.
-        // e.g., GetComponent<Renderer>().material.color = Color.blue;
+    }
+
+    // Optionally set stats if you want to display them
+    public void SetStats(int health, int level)
+    {
+        Health = health;
+        Level = level;
+
+        // Example: color the base differently by level, or show text
+        // E.g. a text mesh, UI canvas, or name label, etc.
+        // Debug.Log($"[BaseMarker] Player {PlayerId} => Health={Health}, Level={Level}");
     }
 }
+
 

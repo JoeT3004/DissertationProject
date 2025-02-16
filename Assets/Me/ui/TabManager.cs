@@ -2,9 +2,8 @@ using UnityEngine;
 using UnityEngine.UI;
 using Mapbox.Unity.Map;
 using Mapbox.Examples;
-
 using System;
-
+using TMPro;
 
 public class TabManager : MonoBehaviour
 {
@@ -23,25 +22,22 @@ public class TabManager : MonoBehaviour
 
     [SerializeField] private GameObject score;
 
-    [SerializeField] private Button removeBaseUIButton; // The actual 'Remove Base' button in Settings Panel
-    [SerializeField] private GameObject removeBaseConfirmPanel; // The confirmation panel
-    [SerializeField] private Button yesRemoveBaseButton;        // The 'Yes' button inside removeBaseConfirmPanel
-    [SerializeField] private Button noRemoveBaseButton;         // The 'No' button inside removeBaseConfirmPanel
+    [SerializeField] private Button removeBaseUIButton;
+    [SerializeField] private GameObject removeBaseConfirmPanel;
+    [SerializeField] private Button yesRemoveBaseButton;
+    [SerializeField] private Button noRemoveBaseButton;
 
-
-
+    [Header("Base Tab UI Elements")]
+    [SerializeField] private GameObject upgradeBaseButton;
+    [SerializeField] private TMP_Text currentBaseStats;
 
     private const string DEFAULT_MAP_STYLE = "mapbox://styles/mapbox/streets-v11";
     private const string DARK_MAP_STYLE = "mapbox://styles/mapbox/dark-v10";
 
     private int currentTabIndex = 0;
 
-
-
     [SerializeField, Range(1, 21)]
     private float baseViewZoomLevel = 16f; // or your preferred default
-
-    
 
     private void EnableQuadTreeCameraMovement(bool enable)
     {
@@ -55,13 +51,8 @@ public class TabManager : MonoBehaviour
         }
     }
 
-
-
     void Start()
     {
-
-
-
         mapButton.onClick.AddListener(() => ButtonClicked(0));
         baseButton.onClick.AddListener(() => ButtonClicked(1));
         settingsButton.onClick.AddListener(() => ButtonClicked(2));
@@ -69,14 +60,10 @@ public class TabManager : MonoBehaviour
         // Start on tab 0
         SwitchTab(0);
 
-
-        // 1) Clear any default listeners
+        // Remove all default listeners for the RemoveBase button
         removeBaseUIButton.onClick.RemoveAllListeners();
-
-        // 2) Show the confirm panel when user clicks "Remove Base"
         removeBaseUIButton.onClick.AddListener(OnRemoveBaseButtonClicked);
 
-        // 3) Confirm/Cancel buttons inside the confirm panel
         yesRemoveBaseButton.onClick.RemoveAllListeners();
         yesRemoveBaseButton.onClick.AddListener(ConfirmRemoveBase);
 
@@ -84,11 +71,9 @@ public class TabManager : MonoBehaviour
         noRemoveBaseButton.onClick.AddListener(CancelRemoveBase);
     }
 
-
-
     private void ButtonClicked(int tabIndex)
     {
-        // If we're in actual "base placing mode", do NOT allow switching
+        // If we're in "base placing mode", do NOT allow switching
         if (baseManager.IsPlacingBase())
         {
             Debug.LogWarning("Cannot switch tabs while placing a base. Must finish placing first.");
@@ -104,10 +89,16 @@ public class TabManager : MonoBehaviour
         bool enableMapInteraction = false;
         bool showReloadMap = false;
 
+        // By default, we turn OFF the upgrade button and stats text in all tabs.
+        // We'll turn them back ON only in case #1 if a base is present.
+        upgradeBaseButton.SetActive(false);     // <-- new line
+        currentBaseStats.gameObject.SetActive(false); // <-- new line
+
         switch (tabIndex)
         {
             case 0: // Map Tab
-                if (settingsPanel != null) settingsPanel.SetActive(false);
+                if (settingsPanel != null)
+                    settingsPanel.SetActive(false);
 
                 baseManager.HidePromptPanel();
 
@@ -126,15 +117,33 @@ public class TabManager : MonoBehaviour
                 break;
 
             case 1: // Base Tab
-                if (settingsPanel != null) settingsPanel.SetActive(false);
+                if (settingsPanel != null)
+                    settingsPanel.SetActive(false);
 
                 baseManager.ShowBaseOnMap();
 
                 showRecenterButton.SetActive(false);
                 score.SetActive(true);
+
+                // Check if we have a base
+                bool hasBase = baseManager.HasBase();
+
+                // If a base exists, we enable the upgrade button & stats text
+                if (hasBase)
+                {
+                    upgradeBaseButton.SetActive(true);
+                    currentBaseStats.gameObject.SetActive(true);
+
+                    // Update the stats text
+                    int level = baseManager.CurrentLevel;
+                    int health = baseManager.CurrentHealth;
+                    currentBaseStats.text = $"Base Level: {level}\nBase Health: {health}/{health}";
+                }
+
                 enableMapInteraction = true;
                 ChangeMapStyle(DARK_MAP_STYLE);
-                removeBaseButton.SetActive(baseManager.HasBase());
+
+                removeBaseButton.SetActive(hasBase);
                 removeBaseConfirmPanel.SetActive(false);
 
                 // If user is in placing mode => hide reloadMapCanvas
@@ -151,21 +160,17 @@ public class TabManager : MonoBehaviour
                         showReloadMap = false;
                 }
 
-                // --- Disable or enable panning here ---
-                if (baseManager.HasBase())
+                // - Disable panning if we have a base. Then set a specific zoom
+                if (hasBase)
                 {
-                    // 1) Disable the QuadTreeCameraMovement
                     EnableQuadTreeCameraMovement(false);
-
-                    // 2) Set a specific zoom level
                     map.UpdateMap(map.CenterLatitudeLongitude, baseViewZoomLevel);
                 }
                 else
                 {
-                    // No base => we allow the user to still pan around
+                    // No base => user can still pan
                     EnableQuadTreeCameraMovement(true);
                 }
-
                 break;
 
             case 2: // Settings Tab
@@ -184,7 +189,7 @@ public class TabManager : MonoBehaviour
                 if (settingsPanel != null)
                     settingsPanel.SetActive(true);
 
-                // ** Show or hide RemoveBaseButton inside settingsPanel **
+                // Show or hide RemoveBaseButton inside settingsPanel
                 if (baseManager.HasBase())
                 {
                     removeBaseButton.SetActive(true);
@@ -194,8 +199,6 @@ public class TabManager : MonoBehaviour
                     removeBaseButton.SetActive(false);
                 }
                 break;
-
-
         }
 
         EnableMapInteractions(enableMapInteraction);
@@ -205,9 +208,7 @@ public class TabManager : MonoBehaviour
             reloadMapCanvas.SetActive(showReloadMap);
     }
 
-
-    // Called from BaseManager after a base is placed or removed, 
-    // or any time we want to re-check the logic for the current tab
+    // Called from BaseManager after a base is placed or removed
     public void RefreshCurrentTabUI()
     {
         SwitchTab(currentTabIndex);
@@ -241,23 +242,19 @@ public class TabManager : MonoBehaviour
 
     private void OnRemoveBaseButtonClicked()
     {
-        // Show the confirmation panel
         removeBaseConfirmPanel.SetActive(true);
     }
 
-    // "Yes" => call BaseManager.RemoveBase(), then hide the panel
     private void ConfirmRemoveBase()
     {
         baseManager.RemoveBase();
         removeBaseConfirmPanel.SetActive(false);
     }
 
-    // "No" => do nothing except hide the panel
     private void CancelRemoveBase()
     {
         removeBaseConfirmPanel.SetActive(false);
     }
 
-    // Expose the current tab index if needed
     public int CurrentTabIndex => currentTabIndex;
 }

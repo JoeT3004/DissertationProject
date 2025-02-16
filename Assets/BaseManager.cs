@@ -16,6 +16,10 @@ public class BaseManager : MonoBehaviour
     [SerializeField] private Button placeBaseButton;     // "Place Base" button
     [SerializeField] private GameObject placeBaseMessage;// "Tap the map" message
 
+    // Let's define an arbitrary cost for upgrading.
+    // In a real game, you might scale this cost by the currentLevel.
+    [SerializeField] int upgradeCost = 50;
+
 
     private bool hasBase = false;
     private bool isPlacingBase = false;
@@ -33,7 +37,18 @@ public class BaseManager : MonoBehaviour
     private int currentHealth;
     private int currentLevel;
 
-    
+    public int CurrentHealth
+    {
+        get { return currentHealth; }
+    }
+
+    public int CurrentLevel
+    {
+        get { return currentLevel; }
+    }
+
+
+
 
     private System.Collections.IEnumerator Start()
     {
@@ -353,6 +368,9 @@ public class BaseManager : MonoBehaviour
                     baseLevel = int.Parse(snap.Child("level").Value.ToString());
                 }
 
+                currentHealth = baseHealth;
+                currentLevel = baseLevel;
+
                 // (Optional) Store these in your BaseManager if you want to track them
                 Debug.Log($"[BaseManager] Found existing base. Health={baseHealth}, Level={baseLevel}");
 
@@ -396,18 +414,30 @@ public class BaseManager : MonoBehaviour
             return;
         }
 
-        // Possibly you'd check resources, cost, etc. But for now, we just increment.
+        
+
+        int userScore = ScoreManager.Instance.GetCurrentScore();
+        if (userScore < upgradeCost)
+        {
+            Debug.LogWarning("[BaseManager] Not enough score to upgrade the base!");
+            return;
+        }
+
+        // Subtract the cost from the user's score
+        ScoreManager.Instance.AddPoints(-upgradeCost);
+
+        // Now apply the upgrade. 
+        // Increment the level, and let's say we add +100 health every time we upgrade.
         currentLevel += 1;
+        currentHealth += 100;
 
-        // Optionally update health. Let's say each level adds 50 max health:
-        currentHealth += 50;
-
-        // Now push the changes to Firebase:
+        // Save the changes to Firebase
         DatabaseReference baseRef = FirebaseInit.DBReference.Child("bases").Child(playerId);
-        baseRef.Child("health").SetValueAsync(currentHealth);
         baseRef.Child("level").SetValueAsync(currentLevel);
+        baseRef.Child("health").SetValueAsync(currentHealth);
 
         Debug.Log($"[BaseManager] Base upgraded! New level={currentLevel}, new health={currentHealth}.");
     }
+
 
 }
