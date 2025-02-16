@@ -20,6 +20,9 @@ public class BaseManager : MonoBehaviour
     // In a real game, you might scale this cost by the currentLevel.
     [SerializeField] int upgradeCost = 50;
 
+    private int totalScoreSpentOnUpgrades = 0;
+
+
 
     private bool hasBase = false;
     private bool isPlacingBase = false;
@@ -250,6 +253,13 @@ public class BaseManager : MonoBehaviour
             return;
         }
 
+        // REFUND the score
+        ScoreManager.Instance.AddPoints(totalScoreSpentOnUpgrades);
+        Debug.Log($"[BaseManager] Refunded {totalScoreSpentOnUpgrades} points to the user.");
+
+        // Reset the tracking
+        totalScoreSpentOnUpgrades = 0;
+
         FirebaseInit.DBReference.Child("bases").Child(playerId).RemoveValueAsync()
             .ContinueWithOnMainThread(task =>
             {
@@ -260,6 +270,11 @@ public class BaseManager : MonoBehaviour
                 }
 
                 Debug.Log("[BaseManager] Base removed from Firebase.");
+
+                currentHealth = 0;
+                currentLevel = 0;
+                totalScoreSpentOnUpgrades = 0; // if you track this too
+
 
                 hasBase = false;
                 if (currentBaseMarker != null)
@@ -280,6 +295,7 @@ public class BaseManager : MonoBehaviour
                 }
             });
     }
+
 
     // ------------------------------------------------------------------------
     // Firebase
@@ -305,20 +321,22 @@ public class BaseManager : MonoBehaviour
             return;
         }
 
-        // We'll assume that whenever we create a new base, 
-        // we set health=100 and level=1 by default.
-
         DatabaseReference baseRef = FirebaseInit.DBReference.Child("bases").Child(playerId);
 
         baseRef.Child("latitude").SetValueAsync(coords.x);
         baseRef.Child("longitude").SetValueAsync(coords.y);
 
-        // New fields:
-        baseRef.Child("health").SetValueAsync(100); // default health
-        baseRef.Child("level").SetValueAsync(1);    // default level
+        // New fields
+        baseRef.Child("health").SetValueAsync(100);
+        baseRef.Child("level").SetValueAsync(1);
+
+        // Immediately sync your local variables
+        currentHealth = 100;
+        currentLevel = 1;
 
         Debug.Log("[BaseManager] Base saved to Firebase with defaults: health=100, level=1");
     }
+
 
 
     private void FetchBaseFromFirebase()
@@ -426,6 +444,9 @@ public class BaseManager : MonoBehaviour
         // Subtract the cost from the user's score
         ScoreManager.Instance.AddPoints(-upgradeCost);
 
+        // Track how much total has been spent so we can refund later if base is removed
+        totalScoreSpentOnUpgrades += upgradeCost;
+
         // Now apply the upgrade. 
         // Increment the level, and let's say we add +100 health every time we upgrade.
         currentLevel += 1;
@@ -435,6 +456,14 @@ public class BaseManager : MonoBehaviour
         DatabaseReference baseRef = FirebaseInit.DBReference.Child("bases").Child(playerId);
         baseRef.Child("level").SetValueAsync(currentLevel);
         baseRef.Child("health").SetValueAsync(currentHealth);
+
+        var tm = FindObjectOfType<TabManager>();
+        if (tm != null)
+        {
+            // This will re-run the SwitchTab(currentTabIndex) logic
+            tm.RefreshCurrentTabUI();
+        }
+
 
         Debug.Log($"[BaseManager] Base upgraded! New level={currentLevel}, new health={currentHealth}.");
     }

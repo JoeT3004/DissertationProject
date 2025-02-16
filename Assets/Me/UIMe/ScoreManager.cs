@@ -9,7 +9,7 @@ public class ScoreManager : MonoBehaviour
     public static ScoreManager Instance;
 
     [SerializeField] private TMP_Text scoreText;  // or TextMeshProUGUI if you prefer
-    private int currentScore = 0;
+    [SerializeField] private int currentScore = 0;
 
     private void Awake()
     {
