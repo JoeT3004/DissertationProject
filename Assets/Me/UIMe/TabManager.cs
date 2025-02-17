@@ -53,6 +53,8 @@ public class TabManager : MonoBehaviour
 
     void Start()
     {
+        removeBaseUIButton.interactable = true;
+
         mapButton.onClick.AddListener(() => ButtonClicked(0));
         baseButton.onClick.AddListener(() => ButtonClicked(1));
         settingsButton.onClick.AddListener(() => ButtonClicked(2));
@@ -240,10 +242,21 @@ public class TabManager : MonoBehaviour
         }
     }
 
-    private void OnRemoveBaseButtonClicked()
+    public void OnRemoveBaseButtonClicked()
     {
+        Debug.Log("OnRemoveBaseButtonClicked() called!");
+
+        foreach (Transform child in settingsPanel.transform)
+        {
+            if (child.gameObject != removeBaseConfirmPanel)
+            {
+                child.gameObject.SetActive(false);
+            }
+        }
+
         removeBaseConfirmPanel.SetActive(true);
     }
+
 
     private void ConfirmRemoveBase()
     {
