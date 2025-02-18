@@ -253,7 +253,7 @@ public class BaseManager : MonoBehaviour
             return;
         }
 
-        // REFUND the score
+        // REFUND the score spent on upgrades:
         ScoreManager.Instance.AddPoints(totalScoreSpentOnUpgrades);
         Debug.Log($"[BaseManager] Refunded {totalScoreSpentOnUpgrades} points to the user.");
 
@@ -273,8 +273,7 @@ public class BaseManager : MonoBehaviour
 
                 currentHealth = 0;
                 currentLevel = 0;
-                totalScoreSpentOnUpgrades = 0; // if you track this too
-
+                totalScoreSpentOnUpgrades = 0;
 
                 hasBase = false;
                 if (currentBaseMarker != null)
@@ -295,6 +294,7 @@ public class BaseManager : MonoBehaviour
                 }
             });
     }
+
 
 
     // ------------------------------------------------------------------------
