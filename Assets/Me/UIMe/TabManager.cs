@@ -14,7 +14,6 @@ public class TabManager : MonoBehaviour
 
     [SerializeField] private BaseManager baseManager;
 
-    [SerializeField] private GameObject removeBaseButton;
     [SerializeField] private GameObject showRecenterButton;
     [SerializeField] private GameObject reloadMapCanvas;
 
@@ -22,7 +21,9 @@ public class TabManager : MonoBehaviour
 
     [SerializeField] private GameObject score;
 
-    [SerializeField] private Button removeBaseUIButton;
+    [SerializeField] private Button removeBaseUIButton;  // Now only using this for both visibility & interaction
+
+    [SerializeField] private GameObject settingsTitle;
     [SerializeField] private GameObject removeBaseConfirmPanel;
     [SerializeField] private Button yesRemoveBaseButton;
     [SerializeField] private Button noRemoveBaseButton;
@@ -93,8 +94,8 @@ public class TabManager : MonoBehaviour
 
         // By default, we turn OFF the upgrade button and stats text in all tabs.
         // We'll turn them back ON only in case #1 if a base is present.
-        upgradeBaseButton.SetActive(false);     // <-- new line
-        currentBaseStats.gameObject.SetActive(false); // <-- new line
+        upgradeBaseButton.SetActive(false);
+        currentBaseStats.gameObject.SetActive(false);
 
         switch (tabIndex)
         {
@@ -105,7 +106,7 @@ public class TabManager : MonoBehaviour
                 baseManager.HidePromptPanel();
 
                 showRecenterButton.SetActive(true);
-                removeBaseButton.SetActive(false);
+                removeBaseUIButton.gameObject.SetActive(false);  // Replaced removeBaseButton with removeBaseUIButton
                 score.SetActive(true);
                 showReloadMap = true;
                 enableMapInteraction = true;
@@ -145,7 +146,7 @@ public class TabManager : MonoBehaviour
                 enableMapInteraction = true;
                 ChangeMapStyle(DARK_MAP_STYLE);
 
-                removeBaseButton.SetActive(hasBase);
+                removeBaseUIButton.gameObject.SetActive(hasBase);  // Replaced removeBaseButton with removeBaseUIButton
                 removeBaseConfirmPanel.SetActive(false);
 
                 // If user is in placing mode => hide reloadMapCanvas
@@ -156,10 +157,7 @@ public class TabManager : MonoBehaviour
                 else
                 {
                     // If promptPanel is active => show reload
-                    if (baseManager.IsPromptPanelActive())
-                        showReloadMap = true;
-                    else
-                        showReloadMap = false;
+                    showReloadMap = baseManager.IsPromptPanelActive();
                 }
 
                 // - Disable panning if we have a base. Then set a specific zoom
@@ -194,11 +192,11 @@ public class TabManager : MonoBehaviour
                 // Show or hide RemoveBaseButton inside settingsPanel
                 if (baseManager.HasBase())
                 {
-                    removeBaseButton.SetActive(true);
+                    removeBaseUIButton.gameObject.SetActive(true);  // Replaced removeBaseButton with removeBaseUIButton
                 }
                 else
                 {
-                    removeBaseButton.SetActive(false);
+                    removeBaseUIButton.gameObject.SetActive(false);
                 }
                 break;
         }
@@ -257,16 +255,27 @@ public class TabManager : MonoBehaviour
         removeBaseConfirmPanel.SetActive(true);
     }
 
-
-    private void ConfirmRemoveBase()
+    public void ConfirmRemoveBase()
     {
         baseManager.RemoveBase();
         removeBaseConfirmPanel.SetActive(false);
+
+        settingsTitle.SetActive(true);
+
+        
+
+
+        SwitchTab(2);
+        removeBaseUIButton.gameObject.SetActive(false);
     }
 
-    private void CancelRemoveBase()
+    public void CancelRemoveBase()
     {
         removeBaseConfirmPanel.SetActive(false);
+
+        settingsTitle.SetActive(true);
+
+        SwitchTab(2);
     }
 
     public int CurrentTabIndex => currentTabIndex;
