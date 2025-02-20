@@ -13,149 +13,139 @@ public class AllBasesManager : MonoBehaviour
 
     // Keep references to spawned markers so we can remove or update them
     private Dictionary<string, GameObject> spawnedMarkers = new Dictionary<string, GameObject>();
-
-    // Store lat/lon for each player so we can recalc positions in LateUpdate
     private Dictionary<string, Vector2d> markerCoordinates = new Dictionary<string, Vector2d>();
 
     private IEnumerator Start()
     {
-        // Wait until Firebase is ready (set by your FirebaseInit)
+        // Wait until Firebase is ready
         while (!FirebaseInit.IsFirebaseReady)
-        {
             yield return null;
+
+        // Fallback if map not assigned
+        if (!map)
+        {
+            map = FindObjectOfType<AbstractMap>();
+            if (!map)
+            {
+                Debug.LogError("[AllBasesManager] No AbstractMap found in the scene!");
+                yield break;
+            }
         }
 
-        Debug.Log("[AllBasesManager] Firebase is ready. Setting up listener for all bases...");
+        Debug.Log("[AllBasesManager] Firebase ready, setting up listener for 'users' node.");
 
-        // Attach a listener so we get updates whenever the 'bases' node changes
-        FirebaseInit.DBReference.Child("bases").ValueChanged += HandleBasesValueChanged;
+        // Attach a listener to the entire 'users' node
+        FirebaseInit.DBReference
+            .Child("users")
+            .ValueChanged += HandleUsersValueChanged;
     }
 
     private void OnDestroy()
     {
-        // Clean up the event listener if this object is destroyed
         if (FirebaseInit.DBReference != null)
         {
-            FirebaseInit.DBReference.Child("bases").ValueChanged -= HandleBasesValueChanged;
+            FirebaseInit.DBReference.Child("users").ValueChanged -= HandleUsersValueChanged;
         }
     }
 
-    private void HandleBasesValueChanged(object sender, ValueChangedEventArgs e)
+    private void HandleUsersValueChanged(object sender, ValueChangedEventArgs e)
     {
-        if (map == null)
+        if (!map)
         {
-            Debug.LogError("[AllBasesManager] AbstractMap reference is null! Cannot place markers.");
+            Debug.LogError("[AllBasesManager] AbstractMap reference is null!");
             return;
         }
-        if (otherUserMarkerPrefab == null)
+        if (!otherUserMarkerPrefab)
         {
-            Debug.LogError("[AllBasesManager] 'otherUserMarkerPrefab' is null! Cannot spawn markers.");
+            Debug.LogError("[AllBasesManager] 'otherUserMarkerPrefab' is null!");
             return;
         }
-
         if (e.DatabaseError != null)
         {
-            Debug.LogError("[AllBasesManager] Listener for bases failed: " + e.DatabaseError.Message);
+            Debug.LogError("[AllBasesManager] Listener for 'users' failed: " + e.DatabaseError.Message);
             return;
         }
 
-        // This snapshot contains the entire "bases" node
         DataSnapshot snapshot = e.Snapshot;
         if (!snapshot.Exists || !snapshot.HasChildren)
         {
-            Debug.Log("[AllBasesManager] No bases found in Firebase. Clearing markers.");
+            Debug.Log("[AllBasesManager] No users found. Clearing markers.");
             ClearAllMarkers();
             return;
         }
 
-        Debug.Log("[AllBasesManager] Bases data changed! Rebuilding markers...");
-
-        // 1) Clear existing markers & coords
+        Debug.Log("[AllBasesManager] 'users' data changed! Rebuilding markers...");
         ClearAllMarkers();
 
-        // 2) Recreate them from the snapshot
-        foreach (var child in snapshot.Children)
+        // For each user (child), see if they have a 'base' subnode
+        foreach (var userSnapshot in snapshot.Children)
         {
-            string thisPlayerId = child.Key;
-            Debug.Log($"[AllBasesManager] Found base for playerId = {thisPlayerId}");
-
-            // --- Ignore local player's base; BaseManager handles that separately ---
-            if (thisPlayerId == PlayerPrefs.GetString("playerId"))
+            string userId = userSnapshot.Key;
+            if (userId == PlayerPrefs.GetString("playerId"))
             {
-                // Skip spawning a marker for our own base
+                // Skip ourselves
                 continue;
             }
 
-            // The rest spawns other user markers.
-            if (child == null) continue; // safety check
-
-            // If your data structure is always: bases/{playerId}/latitude & .../longitude
-            if (!child.HasChild("latitude") || !child.HasChild("longitude"))
+            var baseSnap = userSnapshot.Child("base");
+            if (!baseSnap.Exists)
             {
-                Debug.LogWarning($"[AllBasesManager] Skipping base with missing lat/long for playerId = {thisPlayerId}");
+                // This user doesn't have a base
                 continue;
             }
 
-            object latVal = child.Child("latitude").Value;
-            object lonVal = child.Child("longitude").Value;
-
-            if (latVal == null || lonVal == null)
+            if (!baseSnap.HasChild("latitude") || !baseSnap.HasChild("longitude"))
             {
-                Debug.LogWarning($"[AllBasesManager] Skipping base because latVal/lonVal is null for {thisPlayerId}");
+                Debug.LogWarning($"[AllBasesManager] Missing lat/long for user = {userId}");
                 continue;
             }
 
-            // Convert to double
-            double lat = double.Parse(latVal.ToString());
-            double lon = double.Parse(lonVal.ToString());
+            double lat = double.Parse(baseSnap.Child("latitude").Value.ToString());
+            double lon = double.Parse(baseSnap.Child("longitude").Value.ToString());
             Vector2d coords = new Vector2d(lat, lon);
 
-            // Instantiate the marker at the correct world position (initially)
+            // Optional: read other fields like health, level, username
+            string username = baseSnap.HasChild("username") ? baseSnap.Child("username").Value.ToString() : "Unknown";
+            int enemyHealth = baseSnap.HasChild("health") ? int.Parse(baseSnap.Child("health").Value.ToString()) : 100;
+            int enemyLevel = baseSnap.HasChild("level") ? int.Parse(baseSnap.Child("level").Value.ToString()) : 1;
+
+            // Instantiate marker
             Vector3 worldPos = map.GeoToWorldPosition(coords, true);
             GameObject newMarker = Instantiate(otherUserMarkerPrefab, worldPos, Quaternion.identity);
 
-            // If there's a BaseMarker script, set the playerId
             BaseMarker markerScript = newMarker.GetComponent<BaseMarker>();
             if (markerScript != null)
             {
-                markerScript.Initialize(thisPlayerId);
+                markerScript.Initialize(userId, username, enemyHealth, enemyLevel);
             }
 
-            // Store references so we can reposition later
-            spawnedMarkers[thisPlayerId] = newMarker;
-            markerCoordinates[thisPlayerId] = coords;
+            spawnedMarkers[userId] = newMarker;
+            markerCoordinates[userId] = coords;
         }
 
-        Debug.Log($"[AllBasesManager] Successfully placed {spawnedMarkers.Count} other-user base(s).");
+        Debug.Log($"[AllBasesManager] Placed {spawnedMarkers.Count} markers for other users.");
     }
 
-    /// <summary>
-    /// In LateUpdate, re-position each spawned marker to follow the map
-    /// (in case the map is panning/zooming).
-    /// </summary>
     private void LateUpdate()
     {
-        if (map == null) return;
+        if (!map) return;
 
+        // Re-position each spawned marker in case the map has panned/zoomed
         foreach (var kvp in spawnedMarkers)
         {
-            string playerId = kvp.Key;
+            string userId = kvp.Key;
             GameObject marker = kvp.Value;
 
-            // Lookup lat/lon we stored
-            if (!markerCoordinates.TryGetValue(playerId, out Vector2d coords))
+            if (!markerCoordinates.TryGetValue(userId, out Vector2d coords))
                 continue;
 
-            // Convert lat/lon -> new world pos for this frame
             Vector3 newPos = map.GeoToWorldPosition(coords, true);
-
             marker.transform.position = newPos;
         }
     }
 
     private void ClearAllMarkers()
     {
-        // Destroy all existing markers
         foreach (var kvp in spawnedMarkers)
         {
             Destroy(kvp.Value);

@@ -12,23 +12,20 @@ public class TabManager : MonoBehaviour
     public Button baseButton;
     public Button settingsButton;
 
+    
+
+
     [SerializeField] private BaseManager baseManager;
 
     [SerializeField] private GameObject showRecenterButton;
     [SerializeField] private GameObject reloadMapCanvas;
 
-    [SerializeField] private GameObject settingsPanel; // The new opaque panel for tab 2
-
     [SerializeField] private GameObject score;
 
-    [SerializeField] private Button removeBaseUIButton;  // Now only using this for both visibility & interaction
-
-    [SerializeField] private GameObject settingsTitle;
-    [SerializeField] private GameObject removeBaseConfirmPanel;
-    [SerializeField] private Button yesRemoveBaseButton;
-    [SerializeField] private Button noRemoveBaseButton;
 
     [Header("Base Tab UI Elements")]
+
+    [SerializeField] private GameObject baseUsernamePanel; // The new opaque panel for tab 2
     [SerializeField] private GameObject upgradeBaseButton;
     [SerializeField] private TMP_Text currentBaseStats;
 
@@ -39,6 +36,21 @@ public class TabManager : MonoBehaviour
 
     [SerializeField, Range(1, 21)]
     private float baseViewZoomLevel = 16f; // or your preferred default
+
+    [Header("Settings Tab UI Elements")]
+
+
+    [SerializeField] private GameObject settingsPanel; // The new opaque panel for tab 2
+    [SerializeField] private TMP_InputField settingsUsernameInputField;
+    [SerializeField] private Button updateUsernameButton;
+
+
+    [SerializeField] private Button removeBaseUIButton;  // Now only using this for both visibility & interaction
+
+    [SerializeField] private GameObject settingsTitle;
+    [SerializeField] private GameObject removeBaseConfirmPanel;
+    [SerializeField] private Button yesRemoveBaseButton;
+    [SerializeField] private Button noRemoveBaseButton;
 
     private void EnableQuadTreeCameraMovement(bool enable)
     {
@@ -72,6 +84,13 @@ public class TabManager : MonoBehaviour
 
         noRemoveBaseButton.onClick.RemoveAllListeners();
         noRemoveBaseButton.onClick.AddListener(CancelRemoveBase);
+
+        if (updateUsernameButton != null)
+        {
+            // Clear old listeners
+            updateUsernameButton.onClick.RemoveAllListeners();
+            updateUsernameButton.onClick.AddListener(OnUpdateUsernameButtonClicked);
+        }
     }
 
     private void ButtonClicked(int tabIndex)
@@ -92,8 +111,7 @@ public class TabManager : MonoBehaviour
         bool enableMapInteraction = false;
         bool showReloadMap = false;
 
-        // By default, we turn OFF the upgrade button and stats text in all tabs.
-        // We'll turn them back ON only in case #1 if a base is present.
+        // Hide or show certain objects by default:
         upgradeBaseButton.SetActive(false);
         currentBaseStats.gameObject.SetActive(false);
 
@@ -103,18 +121,21 @@ public class TabManager : MonoBehaviour
                 if (settingsPanel != null)
                     settingsPanel.SetActive(false);
 
+                // If you want to hide the username panel every time you go to the map:
+                baseUsernamePanel.SetActive(false);
+
                 baseManager.HidePromptPanel();
 
                 showRecenterButton.SetActive(true);
-                removeBaseUIButton.gameObject.SetActive(false);  // Replaced removeBaseButton with removeBaseUIButton
+                removeBaseUIButton.gameObject.SetActive(false);
                 score.SetActive(true);
+
                 showReloadMap = true;
                 enableMapInteraction = true;
 
                 ChangeMapStyle(DEFAULT_MAP_STYLE);
-
-                // Always enable panning on tab 0
                 EnableQuadTreeCameraMovement(true);
+
                 removeBaseConfirmPanel.SetActive(false);
 
                 break;
@@ -123,21 +144,30 @@ public class TabManager : MonoBehaviour
                 if (settingsPanel != null)
                     settingsPanel.SetActive(false);
 
-                baseManager.ShowBaseOnMap();
+                // If you want to hide any settings UI here:
+                removeBaseConfirmPanel.SetActive(false);
+
+                // Possibly set baseUsernamePanel.SetActive(false or true)...
+
+                // Username logic
+                if (!baseManager.HasBase() && string.IsNullOrEmpty(UsernameManager.Username))
+                {
+                    UsernameManager.Instance.ShowUsernamePanel();
+                    baseManager.HidePromptPanel();
+                }
+                else
+                {
+                    baseManager.ShowBaseOnMap();
+                }
 
                 showRecenterButton.SetActive(false);
                 score.SetActive(true);
 
-                // Check if we have a base
-                bool hasBase = baseManager.HasBase();
-
-                // If a base exists, we enable the upgrade button & stats text
-                if (hasBase)
+                if (baseManager.HasBase())
                 {
                     upgradeBaseButton.SetActive(true);
                     currentBaseStats.gameObject.SetActive(true);
 
-                    // Update the stats text
                     int level = baseManager.CurrentLevel;
                     int health = baseManager.CurrentHealth;
                     currentBaseStats.text = $"Base Level: {level}\nBase Health: {health}/{health}";
@@ -146,29 +176,21 @@ public class TabManager : MonoBehaviour
                 enableMapInteraction = true;
                 ChangeMapStyle(DARK_MAP_STYLE);
 
-                removeBaseUIButton.gameObject.SetActive(hasBase);  // Replaced removeBaseButton with removeBaseUIButton
-                removeBaseConfirmPanel.SetActive(false);
+                removeBaseUIButton.gameObject.SetActive(baseManager.HasBase());
 
-                // If user is in placing mode => hide reloadMapCanvas
+                // If user is placing base, maybe hide reload map:
                 if (baseManager.IsPlacingBase())
-                {
                     showReloadMap = false;
-                }
                 else
-                {
-                    // If promptPanel is active => show reload
                     showReloadMap = baseManager.IsPromptPanelActive();
-                }
 
-                // - Disable panning if we have a base. Then set a specific zoom
-                if (hasBase)
+                if (baseManager.HasBase())
                 {
                     EnableQuadTreeCameraMovement(false);
                     map.UpdateMap(map.CenterLatitudeLongitude, baseViewZoomLevel);
                 }
                 else
                 {
-                    // No base => user can still pan
                     EnableQuadTreeCameraMovement(true);
                 }
                 break;
@@ -176,28 +198,33 @@ public class TabManager : MonoBehaviour
             case 2: // Settings Tab
                 baseManager.HidePromptPanel();
 
+                // Hide stuff on the Settings tab if you want:
                 showRecenterButton.SetActive(false);
                 score.SetActive(false);
+                baseUsernamePanel.SetActive(false);
 
                 showReloadMap = false;
                 enableMapInteraction = false;
 
-                // Optional: disable panning in settings
                 EnableQuadTreeCameraMovement(false);
 
-                // Show the SettingsPanel
                 if (settingsPanel != null)
                     settingsPanel.SetActive(true);
 
-                // Show or hide RemoveBaseButton inside settingsPanel
                 if (baseManager.HasBase())
                 {
-                    removeBaseUIButton.gameObject.SetActive(true);  // Replaced removeBaseButton with removeBaseUIButton
+                    removeBaseUIButton.gameObject.SetActive(true);
                 }
                 else
                 {
                     removeBaseUIButton.gameObject.SetActive(false);
                 }
+
+                // If you want your "update username" UI to be visible only in settings,
+                // you can do something like:
+                // settingsUsernameInputField.gameObject.SetActive(true);
+                // updateUsernameButton.gameObject.SetActive(true);
+
                 break;
         }
 
@@ -207,6 +234,7 @@ public class TabManager : MonoBehaviour
         if (reloadMapCanvas != null)
             reloadMapCanvas.SetActive(showReloadMap);
     }
+
 
     // Called from BaseManager after a base is placed or removed
     public void RefreshCurrentTabUI()
@@ -277,6 +305,39 @@ public class TabManager : MonoBehaviour
 
         SwitchTab(2);
     }
+
+    public void OnUpdateUsernameButtonClicked()
+    {
+        // 1) Grab the new username text
+        string newUsername = (settingsUsernameInputField != null)
+            ? settingsUsernameInputField.text
+            : "";
+
+        if (string.IsNullOrEmpty(newUsername))
+        {
+            Debug.LogWarning("Cannot update username: field is empty.");
+            return;
+        }
+
+        // 2) Set local in UsernameManager + PlayerPrefs
+        UsernameManager.SetUsername(newUsername);
+        PlayerPrefs.SetString("username", newUsername);
+
+        // 3) If we have a base, update it on Firebase
+        if (baseManager.HasBase())
+        {
+            baseManager.UpdateUsernameInFirebase(newUsername);
+        }
+        else
+        {
+            Debug.Log("No base placed yet, but we saved the new username locally.");
+        }
+
+        // 4) Optionally refresh UI or close a popup, etc.
+        RefreshCurrentTabUI();
+        Debug.Log($"Updated username to '{newUsername}' in Settings!");
+    }
+
 
     public int CurrentTabIndex => currentTabIndex;
 }

@@ -27,30 +27,47 @@ public class BaseTesting : MonoBehaviour
     {
         if (!FirebaseInit.IsFirebaseReady)
         {
-            Debug.LogWarning("Firebase not ready yet. Aborting.");
+            Debug.LogWarning("[FakeBaseTester] Firebase not ready yet. Aborting spawn.");
             return;
         }
 
         Debug.Log("[FakeBaseTester] Spawning fake bases...");
 
-        // Optionally, recenter your map so you can see them in Game view
-        // (Comment out if you do NOT want to override your map center.)
+        // Optional: re-center the map so you can see them in the Scene view
         RecenterMap();
 
-        // Generate random positions around (centerLatitude, centerLongitude)
+        DatabaseReference db = FirebaseInit.DBReference;
+
+        // Generate random positions and create each fake user + base
         for (int i = 0; i < numberOfFakeBases; i++)
         {
-            // Construct a "fake" playerId: e.g. "TestPlayer_0", "TestPlayer_1", etc.
+            // e.g. "TestPlayer_0"
             string fakePlayerId = fakePlayerPrefix + i;
 
-            // Generate random lat/lon near the center
             double lat = centerLatitude + Random.Range(-(float)latLonRandomRange, (float)latLonRandomRange);
             double lon = centerLongitude + Random.Range(-(float)latLonRandomRange, (float)latLonRandomRange);
 
-            // Write these coords to: bases/{fakePlayerId}/latitude, /longitude
-            var db = FirebaseInit.DBReference;
-            db.Child("bases").Child(fakePlayerId).Child("latitude").SetValueAsync(lat);
-            db.Child("bases").Child(fakePlayerId).Child("longitude").SetValueAsync(lon);
+            // Write user data to: users/{fakePlayerId}/score
+            db.Child("users")
+              .Child(fakePlayerId)
+              .Child("score")
+              .SetValueAsync(50);
+
+            // Write base data to: users/{fakePlayerId}/base/...
+            DatabaseReference baseRef = db.Child("users")
+                                          .Child(fakePlayerId)
+                                          .Child("base");
+
+            baseRef.Child("latitude").SetValueAsync(lat);
+            baseRef.Child("longitude").SetValueAsync(lon);
+            baseRef.Child("health").SetValueAsync(100);
+            baseRef.Child("level").SetValueAsync(1);
+
+            // Give each base a fake username
+            string fakeUsername = "FakeBase_" + i;
+            baseRef.Child("username").SetValueAsync(fakeUsername);
+
+            Debug.Log($"[FakeBaseTester] Created fake base for '{fakePlayerId}' at lat={lat}, lon={lon}");
         }
 
         Debug.Log($"[FakeBaseTester] Finished creating {numberOfFakeBases} fake bases under prefix '{fakePlayerPrefix}'.");
@@ -61,26 +78,26 @@ public class BaseTesting : MonoBehaviour
     {
         if (!FirebaseInit.IsFirebaseReady)
         {
-            Debug.LogWarning("Firebase not ready yet. Aborting.");
+            Debug.LogWarning("[FakeBaseTester] Firebase not ready yet. Aborting removal.");
             return;
         }
 
         Debug.Log("[FakeBaseTester] Removing all fake bases...");
 
-        // For each index, remove the child node
+        // Remove each fake user's entire node: "users/{fakePlayerId}"
         for (int i = 0; i < numberOfFakeBases; i++)
         {
             string fakePlayerId = fakePlayerPrefix + i;
             FirebaseInit.DBReference
-                .Child("bases")
+                .Child("users")
                 .Child(fakePlayerId)
                 .RemoveValueAsync()
                 .ContinueWithOnMainThread(task =>
                 {
                     if (task.IsFaulted)
-                        Debug.LogWarning($"[FakeBaseTester] Error removing {fakePlayerId}");
+                        Debug.LogWarning($"[FakeBaseTester] Error removing user '{fakePlayerId}'.");
                     else
-                        Debug.Log($"[FakeBaseTester] Removed base for {fakePlayerId}");
+                        Debug.Log($"[FakeBaseTester] Successfully removed user '{fakePlayerId}'.");
                 });
         }
     }
