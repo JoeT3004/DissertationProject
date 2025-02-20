@@ -13,6 +13,7 @@ GameObject:
   - component: {fileID: 6000160579302929270}
   - component: {fileID: 3758108066411825214}
   - component: {fileID: 4236918235997400243}
+  - component: {fileID: 2762104526117574386}
   m_Layer: 0
   m_Name: Canvas
   m_TagString: Untagged
@@ -119,6 +120,19 @@ MonoBehaviour:
   usernameText: {fileID: 1200171241154007687}
   healthSlider: {fileID: 1331352957132284998}
   healthText: {fileID: 3125139067421430440}
+--- !u!114 &2762104526117574386
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 239553808147250189}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8fd8fe6c01549a8478b1560285935e83, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  attenuation: 0.9
 --- !u!1 &324231633430680906
 GameObject:
   m_ObjectHideFlags: 0
@@ -154,7 +168,7 @@ RectTransform:
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
   m_AnchoredPosition: {x: -0.3, y: 44.9}
-  m_SizeDelta: {x: 300, y: 55}
+  m_SizeDelta: {x: 350, y: 55}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &9057760416109577506
 CanvasRenderer:
@@ -211,11 +225,11 @@ MonoBehaviour:
   m_faceColor:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontSize: 46
+  m_fontSize: 45.45
   m_fontSizeBase: 48
   m_fontWeight: 400
   m_enableAutoSizing: 1
-  m_fontSizeMin: 46
+  m_fontSizeMin: 45
   m_fontSizeMax: 72
   m_fontStyle: 17
   m_HorizontalAlignment: 2
