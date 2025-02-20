@@ -10,8 +10,9 @@ GameObject:
   m_Component:
   - component: {fileID: 4975462510289000}
   - component: {fileID: 4800953253964917420}
+  - component: {fileID: 5707053306601746675}
   m_Layer: 0
-  m_Name: MapboxPin
+  m_Name: POIPrefab
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -52,6 +53,19 @@ MonoBehaviour:
   Id: 0
   Amenity: 
   Ref: 
+--- !u!114 &5707053306601746675
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1064074361305596}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c4de369a27886f34d9a993e793666236, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  minZoomToDisplay: 9
 --- !u!1 &1406253380433950
 GameObject:
   m_ObjectHideFlags: 0
