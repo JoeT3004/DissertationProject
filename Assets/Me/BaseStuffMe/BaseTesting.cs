@@ -33,27 +33,24 @@ public class BaseTesting : MonoBehaviour
 
         Debug.Log("[FakeBaseTester] Spawning fake bases...");
 
-        // Optional: re-center the map so you can see them in the Scene view
         RecenterMap();
 
         DatabaseReference db = FirebaseInit.DBReference;
 
-        // Generate random positions and create each fake user + base
         for (int i = 0; i < numberOfFakeBases; i++)
         {
-            // e.g. "TestPlayer_0"
             string fakePlayerId = fakePlayerPrefix + i;
 
             double lat = centerLatitude + Random.Range(-(float)latLonRandomRange, (float)latLonRandomRange);
             double lon = centerLongitude + Random.Range(-(float)latLonRandomRange, (float)latLonRandomRange);
 
-            // Write user data to: users/{fakePlayerId}/score
+            // Set a score
             db.Child("users")
               .Child(fakePlayerId)
               .Child("score")
               .SetValueAsync(50);
 
-            // Write base data to: users/{fakePlayerId}/base/...
+            // Create a base node
             DatabaseReference baseRef = db.Child("users")
                                           .Child(fakePlayerId)
                                           .Child("base");
@@ -63,11 +60,11 @@ public class BaseTesting : MonoBehaviour
             baseRef.Child("health").SetValueAsync(100);
             baseRef.Child("level").SetValueAsync(1);
 
-            // Give each base a fake username
+            // Each base has a unique username
             string fakeUsername = "FakeBase_" + i;
             baseRef.Child("username").SetValueAsync(fakeUsername);
 
-            Debug.Log($"[FakeBaseTester] Created fake base for '{fakePlayerId}' at lat={lat}, lon={lon}");
+            Debug.Log($"[FakeBaseTester] Created fake base for '{fakePlayerId}' named '{fakeUsername}', lat={lat}, lon={lon}.");
         }
 
         Debug.Log($"[FakeBaseTester] Finished creating {numberOfFakeBases} fake bases under prefix '{fakePlayerPrefix}'.");
@@ -84,7 +81,6 @@ public class BaseTesting : MonoBehaviour
 
         Debug.Log("[FakeBaseTester] Removing all fake bases...");
 
-        // Remove each fake user's entire node: "users/{fakePlayerId}"
         for (int i = 0; i < numberOfFakeBases; i++)
         {
             string fakePlayerId = fakePlayerPrefix + i;

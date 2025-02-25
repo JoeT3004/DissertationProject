@@ -37,6 +37,12 @@ public class BaseManager : MonoBehaviour
     public int CurrentLevel => currentLevel;
     public bool IsPromptPanelActive() => promptPanel != null && promptPanel.activeSelf;
 
+
+    public Vector2d GetBaseCoordinates()
+    {
+        return baseCoordinates;
+    }
+
     private void Awake()
     {
         // Basic singleton pattern
@@ -165,6 +171,20 @@ public class BaseManager : MonoBehaviour
             }
         }
     }
+
+    public void ShowEnemyBaseOnMap(Vector2d coords)
+    {
+        var tm = FindObjectOfType<TabManager>();
+        if (tm != null) tm.SetTabButtonsInteractable(false);
+
+        map.SetCenterLatitudeLongitude(coords);
+        map.UpdateMap();
+
+        // Possibly hide or disable UI like reloadMapCanvas
+        // Or do partial lock: disable panning/zoom in QuadTreeCameraMovement
+    }
+
+
 
     public void StartPlacingBase()
     {
@@ -382,7 +402,7 @@ public class BaseManager : MonoBehaviour
                 var tm = FindObjectOfType<TabManager>();
                 if (tm != null) tm.RefreshCurrentTabUI();
 
-                Debug.Log($"[BaseManager] Found existing base. Health={currentHealth}, Level={currentLevel}");
+                Debug.Log($"[BaseManager] Found existing base from database. Health={currentHealth}, Level={currentLevel}");
             });
     }
 

@@ -23,6 +23,8 @@ public class TabManager : MonoBehaviour
     [SerializeField] private GameObject score;
 
 
+
+
     [Header("Base Tab UI Elements")]
 
     [SerializeField] private GameObject baseUsernamePanel; // The new opaque panel for tab 2
@@ -68,10 +70,7 @@ public class TabManager : MonoBehaviour
     {
         removeBaseUIButton.interactable = true;
 
-        mapButton.onClick.AddListener(() => ButtonClicked(0));
-        baseButton.onClick.AddListener(() => ButtonClicked(1));
-        settingsButton.onClick.AddListener(() => ButtonClicked(2));
-
+        
         // Start on tab 0
         SwitchTab(0);
 
