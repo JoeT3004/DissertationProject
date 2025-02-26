@@ -30,7 +30,7 @@ public class TroopController : MonoBehaviour
     private Vector2d startCoords;
     private Vector2d endCoords;
     private int damage;
-    [SerializeField] private float speed = 0.0001f; // "speed" in lat/lon per second just for demonstration
+    [SerializeField] public float speed = 0.0001f; // "speed" in lat/lon per second just for demonstration
 
     private Vector2d currentCoords;
 
@@ -66,11 +66,15 @@ public class TroopController : MonoBehaviour
 
         troopRef = FirebaseInit.DBReference.Child("troops").Child(troopId);
 
-        // Pass these names to the UI:
+        double travelTimeSec = snapshot.HasChild("travelTimeSec")
+            ? double.Parse(snapshot.Child("travelTimeSec").Value.ToString())
+            : 0.0;
+
         var ui = GetComponentInChildren<TroopUIController>();
         if (ui != null)
         {
             ui.SetTexts(attackerUsername, targetUsername);
+            ui.SetTimeLeft(travelTimeSec);
         }
     }
 
@@ -78,32 +82,41 @@ public class TroopController : MonoBehaviour
 
     private void Update()
     {
-
- 
-
         if (isArrived) return;
 
-        // Move from currentCoords towards endCoords
         double distance = Vector2d.Distance(currentCoords, endCoords);
-        if (distance < 0.00001) // threshold for "arrived"
+        if (distance < 0.00001)
         {
             OnArriveAtTarget();
             return;
         }
 
-        // Simple linear interpolation in lat/lon space:
+        // Move a fraction
         float step = speed * Time.deltaTime;
         double t = step / distance;
         currentCoords = Vector2d.Lerp(currentCoords, endCoords, t);
 
-        // Convert to world pos and set transform
         // Convert lat/lon -> world
         Vector3 worldPos = map.GeoToWorldPosition(currentCoords, true);
         transform.position = worldPos;
 
         // Update Firebase
         UpdateTroopPositionInDB(currentCoords);
+
+        // **New**: Update the "time left"
+        double timeLeftSec = distance / speed;
+        UpdateUITimeLeft(timeLeftSec);
     }
+
+    private void UpdateUITimeLeft(double timeLeftSec)
+    {
+        var ui = GetComponentInChildren<TroopUIController>();
+        if (ui != null)
+        {
+            ui.SetTimeLeft(timeLeftSec);
+        }
+    }
+
 
     private void UpdateTroopPositionInDB(Vector2d coords)
     {

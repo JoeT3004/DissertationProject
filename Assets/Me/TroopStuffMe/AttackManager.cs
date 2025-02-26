@@ -1,5 +1,6 @@
 using UnityEngine;
 using Mapbox.Utils;
+using System.Collections;
 
 public class AttackManager : MonoBehaviour
 {
@@ -62,7 +63,7 @@ public class AttackManager : MonoBehaviour
         // 3) Deduct cost
         ScoreManager.Instance.AddPoints(-totalCost);
 
-        // 4) Continue your existing logic
+        // 4) Get coords
         var myBaseLatLon = BaseManager.Instance.GetBaseCoordinates();
         var targetCoords = AllBasesManager.Instance.GetBaseCoordinates(targetBaseOwnerId);
         if (targetCoords == null)
@@ -71,13 +72,26 @@ public class AttackManager : MonoBehaviour
             return;
         }
 
-        for (int i = 0; i < troopCount; i++)
-        {
-            CreateNewTroopRecord(myBaseLatLon, targetCoords.Value, targetBaseOwnerId);
-        }
+        // 5) Spawn troops in a coroutine so they come out in sequence
+        StartCoroutine(SpawnTroopQueue(myBaseLatLon, targetCoords.Value, targetBaseOwnerId, troopCount));
 
         Debug.Log($"Launched attack on {targetBaseOwnerId} with {troopCount} troops. Cost {totalCost} points.");
     }
+
+    /// <summary>
+    /// Spawns each troop with a slight delay, so they don't all arrive at the same time.
+    /// </summary>
+    private IEnumerator SpawnTroopQueue(Vector2d startCoords, Vector2d endCoords, string targetBaseOwnerId, int troopCount)
+    {
+        for (int i = 0; i < troopCount; i++)
+        {
+            CreateNewTroopRecord(startCoords, endCoords, targetBaseOwnerId);
+
+            // Wait e.g. 3 seconds between spawns (or whatever you want)
+            yield return new WaitForSeconds(3f);
+        }
+    }
+
 
 
     private void CreateNewTroopRecord(
@@ -85,6 +99,8 @@ public class AttackManager : MonoBehaviour
     Vector2d endCoords,
     string targetBaseOwnerId)
     {
+
+
         string troopId = System.Guid.NewGuid().ToString();
         var troopRef = FirebaseInit.DBReference
             .Child("troops")
@@ -97,6 +113,14 @@ public class AttackManager : MonoBehaviour
         string targetUsername = AllBasesManager.Instance.GetUsernameOfUser(targetBaseOwnerId);
 
         var troopData = new System.Collections.Generic.Dictionary<string, object>();
+
+        double distance = Vector2d.Distance(startCoords, endCoords);
+        float troopSpeed = 0.0001f;
+        double travelTimeSec = distance / troopSpeed;
+
+        troopData["travelTimeSec"] = travelTimeSec;
+
+
         troopData["attackerId"] = PlayerPrefs.GetString("playerId");
         troopData["attackerUsername"] = attackerUsername;  // store it
         troopData["targetBaseOwnerId"] = targetBaseOwnerId;
