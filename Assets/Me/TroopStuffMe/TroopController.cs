@@ -5,16 +5,13 @@ using Firebase.Database;
 using Mapbox.Utils;
 using Mapbox.Unity.Map;
 
-
 public class TroopController : MonoBehaviour
 {
-
     private AbstractMap map;
     public void SetMap(AbstractMap map)
     {
         this.map = map;
-
-        // If we also have a TroopScaler, initialize it
+        // Initialize any attached scaler if needed.
         var scaler = GetComponent<TroopScaleAdjuster>();
         if (scaler != null)
         {
@@ -22,17 +19,19 @@ public class TroopController : MonoBehaviour
         }
     }
 
-
-
     private string troopId;
     private string attackerId;
     private string targetBaseOwnerId;
     private Vector2d startCoords;
     private Vector2d endCoords;
     private int damage;
-    [SerializeField] public float speed = 0.0001f; // "speed" in lat/lon per second just for demonstration
+
+    // Speed is now expressed in meters/second
+    [SerializeField] public float speed = 0.001f;
 
     private Vector2d currentCoords;
+    // Total journey distance (in meters), computed once in InitFromSnapshot.
+    private double totalDistanceMeters;
 
     private DatabaseReference troopRef;
     private bool isArrived = false;
@@ -64,49 +63,51 @@ public class TroopController : MonoBehaviour
         endCoords = new Vector2d(eLat, eLon);
         currentCoords = new Vector2d(cLat, cLon);
 
-        troopRef = FirebaseInit.DBReference.Child("troops").Child(troopId);
+        // Compute total journey distance in meters once:
+        totalDistanceMeters = GeoUtils.HaversineDistance(startCoords, endCoords);
 
-        double travelTimeSec = snapshot.HasChild("travelTimeSec")
-            ? double.Parse(snapshot.Child("travelTimeSec").Value.ToString())
-            : 0.0;
+        troopRef = FirebaseInit.DBReference.Child("troops").Child(troopId);
 
         var ui = GetComponentInChildren<TroopUIController>();
         if (ui != null)
         {
             ui.SetTexts(attackerUsername, targetUsername);
-            ui.SetTimeLeft(travelTimeSec);
+            // Optionally, initialize the UI time with the full travel time:
+            double fullTravelTime = totalDistanceMeters / speed;
+            ui.SetTimeLeft(fullTravelTime);
         }
     }
-
-
 
     private void Update()
     {
         if (isArrived) return;
 
-        double distance = Vector2d.Distance(currentCoords, endCoords);
-        if (distance < 0.00001)
+        // Use GeoUtils.HaversineDistance to get remaining distance in meters
+        double distanceMeters = GeoUtils.HaversineDistance(currentCoords, endCoords);
+        if (distanceMeters < 1.0) // if less than 1 meter remains, consider arrived
         {
             OnArriveAtTarget();
             return;
         }
 
-        // Move a fraction
+        // Move a fraction based on speed (now in m/s)
         float step = speed * Time.deltaTime;
-        double t = step / distance;
-        currentCoords = Vector2d.Lerp(currentCoords, endCoords, t);
+        double t = step / distanceMeters;
+        currentCoords = Vector2d.Lerp(currentCoords, endCoords, (float)t);
 
-        // Convert lat/lon -> world
+        // Update world position using the map conversion
         Vector3 worldPos = map.GeoToWorldPosition(currentCoords, true);
         transform.position = worldPos;
 
-        // Update Firebase
+        // Update Firebase with the new position
         UpdateTroopPositionInDB(currentCoords);
 
-        // **New**: Update the "time left"
-        double timeLeftSec = distance / speed;
+        // Compute remaining time in seconds (meters divided by m/s)
+        double timeLeftSec = distanceMeters / speed;
         UpdateUITimeLeft(timeLeftSec);
     }
+
+
 
     private void UpdateUITimeLeft(double timeLeftSec)
     {
@@ -117,7 +118,6 @@ public class TroopController : MonoBehaviour
         }
     }
 
-
     private void UpdateTroopPositionInDB(Vector2d coords)
     {
         if (troopRef == null) return;
@@ -125,21 +125,16 @@ public class TroopController : MonoBehaviour
         troopRef.Child("currentLon").SetValueAsync(coords.y);
     }
 
-private void OnArriveAtTarget()
-{
-    // If the DB is not ready, skip or delay damage
-    if (!FirebaseInit.IsFirebaseReady || FirebaseInit.DBReference == null)
+    private void OnArriveAtTarget()
     {
-        Debug.LogWarning("Cannot deal damage yet, Firebase not ready. Will skip for now.");
-        // Optionally set a flag to handle it later, or just remove the troop
+        if (!FirebaseInit.IsFirebaseReady || FirebaseInit.DBReference == null)
+        {
+            Debug.LogWarning("Cannot deal damage yet, Firebase not ready. Will skip for now.");
+            Destroy(gameObject);
+            return;
+        }
+        BaseDamageHandler.DealDamageToBase(targetBaseOwnerId, damage, attackerId);
+        troopRef.RemoveValueAsync();
         Destroy(gameObject);
-        return;
     }
-
-    // Proceed with the existing logic
-    BaseDamageHandler.DealDamageToBase(targetBaseOwnerId, damage, attackerId);
-    troopRef.RemoveValueAsync();
-    Destroy(gameObject);
-}
-
 }

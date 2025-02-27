@@ -12,8 +12,8 @@ public class TroopSelectPanel : MonoBehaviour
 
     [Header("Prefabs / References")]
     [SerializeField] private TroopController troopPrototype;
-    // ^ The "TroopController" on your troop prefab (drag it from Project window).
-    // We'll read "speed" from this in real time.
+    // This reference should be set by dragging the TroopController script 
+    // from your troop prefab (or an instance of it) from the Project window.
 
     private int troopCount = 1;
     private string enemyOwnerId;
@@ -25,6 +25,8 @@ public class TroopSelectPanel : MonoBehaviour
     private void OnEnable()
     {
         isPanelActive = true;
+        // Recalculate once when enabled.
+        RecalculateEstimatedTime();
     }
 
     private void OnDisable()
@@ -34,11 +36,12 @@ public class TroopSelectPanel : MonoBehaviour
 
     private void Update()
     {
-        // If the panel is open, recalc the estimated time each frame,
-        // so it updates if we change speed in the inspector.
-        if (!isPanelActive) return;
-
-        RecalculateEstimatedTime();
+        // If you want the panel to update in real time when speed changes,
+        // you can recalc each frame:
+        if (isPanelActive)
+        {
+            RecalculateEstimatedTime();
+        }
     }
 
     public void Show(string enemyOwnerId, string enemyUsername, int costPerTroop)
@@ -54,29 +57,12 @@ public class TroopSelectPanel : MonoBehaviour
         if (troopCostUI != null)
             troopCostUI.text = $"Troop Cost: {costPerTroop}";
 
-        // Get the local user’s base and enemy base coordinates
-        Vector2d? myBase = BaseManager.Instance.GetBaseCoordinates();
-        Vector2d? enemyBase = AllBasesManager.Instance.GetBaseCoordinates(enemyOwnerId);
-        if (myBase.HasValue && enemyBase.HasValue)
-        {
-            // Use the Haversine formula to get the distance in meters
-            double distanceMeters = GeoUtils.HaversineDistance(myBase.Value, enemyBase.Value);
-            // Read the troop speed (in meters/second) from a prototype reference
-            // (Assumes you have a TroopController reference set up in the inspector)
-            float troopSpeedMps = (troopPrototype != null) ? troopPrototype.speed : 1f;
-            double travelTimeSeconds = distanceMeters / troopSpeedMps;
-
-            if (estimatedTimeText != null)
-            {
-                double mins = travelTimeSeconds / 60.0;
-                estimatedTimeText.text = $"Estimated time to reach {enemyUsername}:\n{mins:F1} minutes ({travelTimeSeconds:F0} sec)";
-            }
-        }
+        // Calculate the estimated travel time using full distance (as if the troop had not moved)
+        RecalculateEstimatedTime();
 
         RefreshTroopCountText();
         gameObject.SetActive(true);
     }
-
 
     private void RefreshTroopCountText()
     {
@@ -85,29 +71,29 @@ public class TroopSelectPanel : MonoBehaviour
     }
 
     /// <summary>
-    /// Recompute the distance and time based on the user’s base to the enemy’s base,
-    /// plus the current speed from 'troopPrototype'.
+    /// Recalculate the estimated travel time from the local base to the enemy base,
+    /// using GeoUtils.HaversineDistance (meters) and the current troop speed (in m/s).
+    /// This value remains constant (as if the troop had not moved).
     /// </summary>
     private void RecalculateEstimatedTime()
     {
-        // Must have a troopPrototype reference and an 'enemyOwnerId'
         if (troopPrototype == null || string.IsNullOrEmpty(enemyOwnerId)) return;
 
-        var myBase = BaseManager.Instance.GetBaseCoordinates(); // local coords
-        var enemyBase = AllBasesManager.Instance.GetBaseCoordinates(enemyOwnerId);
-        if (!enemyBase.HasValue) return; // no coords
+        Vector2d? myBase = BaseManager.Instance.GetBaseCoordinates();
+        Vector2d? enemyBase = AllBasesManager.Instance.GetBaseCoordinates(enemyOwnerId);
+        if (!myBase.HasValue || !enemyBase.HasValue) return;
 
-        double dist = Vector2d.Distance(myBase, enemyBase.Value);
-        float currentSpeed = troopPrototype.speed; // read from inspector in real time
-        if (currentSpeed <= 0f) currentSpeed = 0.0001f; // avoid div by zero
-
-        double travelTimeSeconds = dist / currentSpeed;
+        // Use the Haversine formula to get the distance in meters.
+        double distanceMeters = GeoUtils.HaversineDistance(myBase.Value, enemyBase.Value);
+        // Read the troop speed from the prototype (in m/s)
+        float troopSpeedMps = (troopPrototype != null) ? troopPrototype.speed : 1f;
+        if (troopSpeedMps <= 0f) troopSpeedMps = 0.0001f;
+        double travelTimeSeconds = distanceMeters / troopSpeedMps;
 
         if (estimatedTimeText != null)
         {
             double mins = travelTimeSeconds / 60.0;
-            estimatedTimeText.text =
-                $"Estimated:\n{mins:F1} min ({travelTimeSeconds:F0} s) @ speed={currentSpeed}";
+            estimatedTimeText.text = $"Estimated time to reach {enemyUsername}:\n{mins:F1} min ({travelTimeSeconds:F0} s) @ speed={troopSpeedMps}";
         }
     }
 
@@ -128,10 +114,27 @@ public class TroopSelectPanel : MonoBehaviour
     {
         AttackManager.Instance.LaunchAttack(enemyOwnerId, troopCount);
         gameObject.SetActive(false);
+
+        SetTabButtonsInteractable();
+
+        //UNLOCK Tabs
     }
 
     public void OnCancelClicked()
     {
         gameObject.SetActive(false);
+
+        SetTabButtonsInteractable();
+        //UNlockTABS
+    }
+
+    private void SetTabButtonsInteractable(){
+        TabManager tm = FindObjectOfType<TabManager>();
+
+        if (tm != null)
+        {
+            tm.SetTabButtonsInteractable(true);
+        }
+
     }
 }
