@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using Firebase.Database;
+
 using Firebase.Extensions;
 using UnityEngine;
 
@@ -8,7 +9,6 @@ public static class BaseDamageHandler
 {
     public static void DealDamageToBase(string targetOwnerId, int damage, string attackerId)
     {
-
         if (FirebaseInit.DBReference == null)
         {
             Debug.LogWarning("DBReference is null, cannot deal damage. " +
@@ -21,7 +21,8 @@ public static class BaseDamageHandler
             Debug.LogWarning("DealDamageToBase called with an empty or null targetOwnerId.");
             return;
         }
-        // 1) Grab reference to the target base’s "health"
+
+        // 1) Grab reference to the target base’s "base" node.
         var baseRef = FirebaseInit.DBReference
             .Child("users")
             .Child(targetOwnerId)
@@ -42,6 +43,7 @@ public static class BaseDamageHandler
                 return;
             }
 
+            // Get the current health.
             int oldHealth = snap.HasChild("health")
                 ? int.Parse(snap.Child("health").Value.ToString())
                 : 0;
@@ -49,21 +51,26 @@ public static class BaseDamageHandler
             int newHealth = oldHealth - damage;
             if (newHealth <= 0)
             {
-                // base destroyed
                 Debug.Log("Base destroyed!");
 
-                // remove base
+                // Read the base level. If missing, default to level 1.
+                int baseLevel = snap.HasChild("level")
+                    ? int.Parse(snap.Child("level").Value.ToString())
+                    : 1;
+                // Award points: 50 points per level.
+                int awardPoints = baseLevel * 50;
+
+                // Remove the base node.
                 baseRef.RemoveValueAsync().ContinueWithOnMainThread(_ =>
                 {
                     Debug.Log("Base removed from Firebase after destruction.");
-
-                    // Award attacker points
-                    AwardPoints(attackerId, 100); // or dynamic points
+                    // Award the attacker the calculated points.
+                    AwardPoints(attackerId, awardPoints);
                 });
             }
             else
             {
-                // Just update the new health
+                // If base still has health remaining, update its health.
                 baseRef.Child("health").SetValueAsync(newHealth);
             }
         });
@@ -71,7 +78,7 @@ public static class BaseDamageHandler
 
     private static void AwardPoints(string playerId, int points)
     {
-        // Add the points to the attacker’s "score"
+        // Add the points to the attacker's "score"
         var scoreRef = FirebaseInit.DBReference
             .Child("users")
             .Child(playerId)

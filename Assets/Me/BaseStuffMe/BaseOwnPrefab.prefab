@@ -115,7 +115,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: acfebf4a4b28bb743baec0a028d239dd, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  disableZoomThreshold: 11
+  disableZoomThreshold: 8
 --- !u!1 &324231633430680906
 GameObject:
   m_ObjectHideFlags: 0

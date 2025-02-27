@@ -65,7 +65,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c4de369a27886f34d9a993e793666236, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  minZoomToDisplay: 9
+  minZoomToDisplay: 12
 --- !u!1 &1406253380433950
 GameObject:
   m_ObjectHideFlags: 0
