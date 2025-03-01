@@ -4,6 +4,8 @@ using Mapbox.Unity.Map;
 using Mapbox.Utils;
 using Firebase.Database;
 using Firebase.Extensions;
+using TMPro;
+using System.Collections;
 
 public class BaseManager : MonoBehaviour
 {
@@ -15,6 +17,7 @@ public class BaseManager : MonoBehaviour
     [SerializeField] private GameObject promptPanel;      // Visible only on Tab1 if no base
     [SerializeField] private Button placeBaseButton;      // "Place Base" button
     [SerializeField] private GameObject placeBaseMessage; // "Tap the map" message
+    [SerializeField] private TMP_Text healthRestored;
 
     [Header("Costs")]
     [SerializeField] private int upgradeCost = 50;
@@ -305,13 +308,45 @@ public class BaseManager : MonoBehaviour
         {
             // Means the base node was removed
             hasBase = false;
-            // Clean up marker, UI, etc. (Optional)
+
+            // Clean up marker so it disappears from the scene
+            if (currentBaseMarker != null)
+            {
+                Destroy(currentBaseMarker);
+                currentBaseMarker = null;
+            }
+
+            // Possibly also refresh UI or other logic
+            Debug.Log("[BaseManager] Local base is destroyed => removing local marker.");
+
             return;
         }
+
 
         // Parse new values
         currentHealth = snap.HasChild("health") ? int.Parse(snap.Child("health").Value.ToString()) : 100;
         currentLevel = snap.HasChild("level") ? int.Parse(snap.Child("level").Value.ToString()) : 1;
+
+
+        // check if "destroyedBaseNotify" is set
+        if (snap.HasChild("destroyedBaseNotify"))
+        {
+            bool notify = bool.Parse(snap.Child("destroyedBaseNotify").Value.ToString());
+            if (notify)
+            {
+                // show a short UI prompt
+                ShowDestroyBasePrompt();
+
+                // reset it to false so we don’t repeatedly show the prompt
+                FirebaseInit.DBReference
+                  .Child("users")
+                  .Child(playerId)
+                  .Child("base")
+                  .Child("destroyedBaseNotify")
+                  .SetValueAsync(false);
+            }
+        }
+
 
         // Update local marker UI
         if (currentBaseMarker)
@@ -578,5 +613,23 @@ public class BaseManager : MonoBehaviour
             return true;
         }
         return false;
+    }
+
+    private void ShowDestroyBasePrompt()
+    {
+        // A quick approach is to create a small UI popup or toast at bottom of screen.
+        // For example:
+        Debug.Log("You destroyed an enemy base! Base fully restored.");
+    
+        string message = "You destroyed an enemy base! Base fully restored.";
+        StartCoroutine(DisplayPrompt(message, 3f));
+    }
+
+    private IEnumerator DisplayPrompt(string message, float duration)
+    {
+        healthRestored.text = message;
+        healthRestored.gameObject.SetActive(true);
+        yield return new WaitForSeconds(duration);
+        healthRestored.gameObject.SetActive(false);
     }
 }

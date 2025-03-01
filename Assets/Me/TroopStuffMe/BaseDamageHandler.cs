@@ -66,6 +66,8 @@ public static class BaseDamageHandler
                     Debug.Log("Base removed from Firebase after destruction.");
                     // Award the attacker the calculated points.
                     AwardPoints(attackerId, awardPoints);
+
+                    RestoreAttackerBase(attackerId);
                 });
             }
             else
@@ -101,4 +103,30 @@ public static class BaseDamageHandler
             scoreRef.SetValueAsync(newScore);
         });
     }
+
+    private static void RestoreAttackerBase(string attackerId)
+    {
+        // 1) Reference the attacker’s base node
+        var attackerBaseRef = FirebaseInit.DBReference
+            .Child("users")
+            .Child(attackerId)
+            .Child("base");
+
+        attackerBaseRef.GetValueAsync().ContinueWithOnMainThread(task =>
+        {
+            if (task.IsFaulted || task.IsCanceled) return;
+            var snap = task.Result;
+            if (!snap.Exists) return;
+
+            // read the level => set health to level * 100
+            int level = snap.HasChild("level") ? int.Parse(snap.Child("level").Value.ToString()) : 1;
+            int newHealth = level * 100;
+            attackerBaseRef.Child("health").SetValueAsync(newHealth);
+
+            // also set a simple flag that indicates the user destroyed a base,
+            // so the attacker’s client can show a short UI prompt.
+            attackerBaseRef.Child("destroyedBaseNotify").SetValueAsync(true);
+        });
+    }
+
 }

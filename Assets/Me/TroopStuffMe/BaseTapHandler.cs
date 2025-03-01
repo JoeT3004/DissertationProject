@@ -14,26 +14,35 @@ public class BaseTapHandler : MonoBehaviour, IPointerClickHandler
     public void OnPointerClick(PointerEventData eventData)
     {
         Debug.Log("BaseTapHandler.OnPointerClick => Called. Attempting to open TroopSelectPanel.");
+        if (baseMarker == null) return;
 
-        if (baseMarker != null)
+        // if user has no base, just skip re-centering
+        if (!BaseManager.Instance.HasBase())
         {
-            // Attack panel
-            AttackManager.Instance.OpenTroopSelectionUI(
-                baseMarker.PlayerId,
-                baseMarker.Username,
-                baseMarker.Health,
-                baseMarker.Level
-            );
+            Debug.Log("User has no base, skipping troop panel + re-center.");
+            return;
         }
+
+        // Also skip if we’re on tab #1 (Base Tab):
+        var tm = FindObjectOfType<TabManager>();
+        if (tm != null && tm.CurrentTabIndex == 1)
+        {
+            Debug.Log("User is in Base tab => ignoring enemy base tap.");
+            return;
+        }
+
+        // Otherwise proceed:
+        AttackManager.Instance.OpenTroopSelectionUI(baseMarker.PlayerId, baseMarker.Username,
+                                                   baseMarker.Health, baseMarker.Level);
 
         // Re-center
         string enemyOwnerId = baseMarker.PlayerId; // define it
         var enemyCoords = AllBasesManager.Instance.GetBaseCoordinates(enemyOwnerId);
         if (enemyCoords != null)
         {
-            // call your ShowEnemyBaseOnMap method
             BaseManager.Instance.ShowEnemyBaseOnMap(enemyCoords.Value);
         }
     }
+
 
 }

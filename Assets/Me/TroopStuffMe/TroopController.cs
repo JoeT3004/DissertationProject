@@ -26,6 +26,9 @@ public class TroopController : MonoBehaviour
     private Vector2d endCoords;
     private int damage;
 
+    private float accumulatedTime = 0f; // total time since last actual update
+
+
     // Speed is now expressed in meters/second
     [SerializeField] public float speed = 0.001f;
 
@@ -35,6 +38,9 @@ public class TroopController : MonoBehaviour
 
     private DatabaseReference troopRef;
     private bool isArrived = false;
+
+    private float updateTimer = 0f;
+
 
     public void InitFromSnapshot(string troopId, DataSnapshot snapshot)
     {
@@ -80,31 +86,63 @@ public class TroopController : MonoBehaviour
 
     private void Update()
     {
+        float dt;
+        if (!ShouldUpdateThisFrame(out dt)) return;
+        // If false, we skip this frame’s movement.
+
         if (isArrived) return;
 
-        // Use GeoUtils.HaversineDistance to get remaining distance in meters
+        // distance to the target
         double distanceMeters = GeoUtils.HaversineDistance(currentCoords, endCoords);
-        if (distanceMeters < 1.0) // if less than 1 meter remains, consider arrived
+        if (distanceMeters < 1.0)
         {
             OnArriveAtTarget();
             return;
         }
 
-        // Move a fraction based on speed (now in m/s)
-        float step = speed * Time.deltaTime;
-        double t = step / distanceMeters;
-        currentCoords = Vector2d.Lerp(currentCoords, endCoords, (float)t);
+        // Move the troop as if 'dt' seconds of real time have passed
+        float step = speed * dt;  // e.g. if dt=1.0, step = speed * 1 => big jump
+        double fraction = step / distanceMeters;
+        currentCoords = Vector2d.Lerp(currentCoords, endCoords, fraction);
 
-        // Update world position using the map conversion
+        // update world position
         Vector3 worldPos = map.GeoToWorldPosition(currentCoords, true);
         transform.position = worldPos;
 
-        // Update Firebase with the new position
+        // update firebase
         UpdateTroopPositionInDB(currentCoords);
 
-        // Compute remaining time in seconds (meters divided by m/s)
-        double timeLeftSec = distanceMeters / speed;
+        // UI time left
+        double timeLeftSec = distanceMeters / speed - dt;
+        // ^ we subtract dt from the “travel time left” so it’s consistent.
+
+        if (timeLeftSec < 0) timeLeftSec = 0; // clamp
+
         UpdateUITimeLeft(timeLeftSec);
+    }
+
+
+
+    private bool ShouldUpdateThisFrame(out float actualDt)
+    {
+        // If not in reduce load mode, do normal approach.
+        if (!TabManager.IsReduceLoadMode())
+        {
+            actualDt = Time.deltaTime;
+            return true;
+        }
+
+        // If in reduce load mode, we accumulate time until 1 second has passed
+        accumulatedTime += Time.deltaTime;
+        if (accumulatedTime >= 1f)
+        {
+            actualDt = accumulatedTime;  // use the entire accumulated time
+            accumulatedTime = 0f;
+            return true;
+        }
+
+        actualDt = 0f;
+        return false;
     }
 
 

@@ -25,6 +25,8 @@ public class TabManager : MonoBehaviour
 
 
 
+
+
     [Header("Base Tab UI Elements")]
 
     [SerializeField] private GameObject baseUsernamePanel; // The new opaque panel for tab 2
@@ -54,6 +56,11 @@ public class TabManager : MonoBehaviour
     [SerializeField] private Button yesRemoveBaseButton;
     [SerializeField] private Button noRemoveBaseButton;
 
+
+    [SerializeField] private Toggle reduceLoadToggle;
+
+    private static bool reduceLoadMode = false;
+
     private void EnableQuadTreeCameraMovement(bool enable)
     {
         if (map != null)
@@ -70,7 +77,16 @@ public class TabManager : MonoBehaviour
     {
         removeBaseUIButton.interactable = true;
 
-        
+
+
+        Debug.Log($"[TabManager] Before hooking: reduceLoadToggle has {reduceLoadToggle.onValueChanged.GetPersistentEventCount()} persistent events");
+
+        if (reduceLoadToggle != null)
+        {
+            reduceLoadToggle.onValueChanged.AddListener(OnReduceLoadToggleChanged);
+        }
+
+        Debug.Log($"[TabManager] After hooking: reduceLoadToggle has {reduceLoadToggle.onValueChanged.GetPersistentEventCount()} persistent events");
         // Start on tab 0
         SwitchTab(0);
 
@@ -169,7 +185,8 @@ public class TabManager : MonoBehaviour
 
                     int level = baseManager.CurrentLevel;
                     int health = baseManager.CurrentHealth;
-                    currentBaseStats.text = $"Base Level: {level}\nBase Health: {health}/{health}";
+                    int maxHealth = level * 100;
+                    currentBaseStats.text = $"Base Level: {level}\nBase Health: {health}/{maxHealth}";
                 }
 
                 enableMapInteraction = true;
@@ -207,17 +224,31 @@ public class TabManager : MonoBehaviour
 
                 EnableQuadTreeCameraMovement(false);
 
+                // Ensure the toggle is visible if you placed it separately
+                if (reduceLoadToggle != null)
+                    reduceLoadToggle.gameObject.SetActive(true);
+
+
                 if (settingsPanel != null)
                     settingsPanel.SetActive(true);
 
                 if (baseManager.HasBase())
                 {
                     removeBaseUIButton.gameObject.SetActive(true);
+
+                    // Show username fields if you want them only when user has a base:
+                    settingsUsernameInputField.gameObject.SetActive(true);
+                    updateUsernameButton.gameObject.SetActive(true);
                 }
                 else
                 {
                     removeBaseUIButton.gameObject.SetActive(false);
+
+                    // Possibly hide them if user has no base
+                    settingsUsernameInputField.gameObject.SetActive(false);
+                    updateUsernameButton.gameObject.SetActive(false);
                 }
+
 
                 // If you want your "update username" UI to be visible only in settings,
                 // you can do something like:
@@ -336,6 +367,18 @@ public class TabManager : MonoBehaviour
         RefreshCurrentTabUI();
         Debug.Log($"Updated username to '{newUsername}' in Settings!");
     }
+
+    public void OnReduceLoadToggleChanged(bool isOn)
+    {
+        reduceLoadMode = isOn;
+        Debug.Log("Reduce Load Mode = " + reduceLoadMode);
+    }
+
+    public static bool IsReduceLoadMode()
+    {
+        return reduceLoadMode;
+    }
+
 
 
     public int CurrentTabIndex => currentTabIndex;
