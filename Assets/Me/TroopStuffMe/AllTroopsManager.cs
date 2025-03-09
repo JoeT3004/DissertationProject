@@ -4,14 +4,15 @@ using UnityEngine;
 using Firebase.Database;
 using Mapbox.Unity.Map;
 using Mapbox.Utils;
-using System.Collections.Generic;
-
 public class AllTroopsManager : MonoBehaviour
 {
     public static AllTroopsManager Instance { get; private set; }
 
     [SerializeField] private AbstractMap map;
-    [SerializeField] private GameObject troopPrefab;
+    [Header("Troop Prefabs")]
+    [SerializeField] private GameObject ghostPrefab;
+    [SerializeField] private GameObject alienPrefab;
+    [SerializeField] private GameObject robotPrefab;
 
     private Dictionary<string, GameObject> spawnedTroops = new Dictionary<string, GameObject>();
 
@@ -21,23 +22,21 @@ public class AllTroopsManager : MonoBehaviour
         else Destroy(gameObject);
     }
 
-    private System.Collections.IEnumerator Start()
+    private IEnumerator Start()
     {
+        // Wait for Firebase to be ready
         while (!FirebaseInit.IsFirebaseReady)
             yield return null;
 
         // Listen for changes under "troops"
-        FirebaseInit.DBReference
-            .Child("troops")
-            .ValueChanged += OnTroopsValueChanged;
+        FirebaseInit.DBReference.Child("troops").ValueChanged += OnTroopsValueChanged;
     }
 
     private void OnDestroy()
     {
+        // Unsubscribe to avoid memory leaks
         if (FirebaseInit.DBReference != null)
-        {
             FirebaseInit.DBReference.Child("troops").ValueChanged -= OnTroopsValueChanged;
-        }
     }
 
     private void OnTroopsValueChanged(object sender, ValueChangedEventArgs e)
@@ -48,55 +47,56 @@ public class AllTroopsManager : MonoBehaviour
             return;
         }
 
-        // Clear old
+        // Clear out old troops
         foreach (var kvp in spawnedTroops)
-        {
             Destroy(kvp.Value);
-        }
         spawnedTroops.Clear();
 
-        if (!e.Snapshot.Exists) return; // no troops
+        // If "troops" node is empty, do nothing
+        if (!e.Snapshot.Exists) return;
 
+        // Iterate each troop
         foreach (var troopSnapshot in e.Snapshot.Children)
         {
             string troopId = troopSnapshot.Key;
 
-            // Read data
-            if (!troopSnapshot.HasChild("attackerId") ||
-                !troopSnapshot.HasChild("currentLat") ||
-                !troopSnapshot.HasChild("currentLon"))
+            // Grab the "troopType" to pick correct prefab
+            if (!troopSnapshot.HasChild("troopType")) continue;
+            string troopTypeString = troopSnapshot.Child("troopType").Value.ToString();
+
+            AttackManager.TroopType troopType = (AttackManager.TroopType)
+                 System.Enum.Parse(typeof(AttackManager.TroopType), troopTypeString);
+
+            // Decide which prefab
+            GameObject prefabToSpawn = ghostPrefab;
+            switch (troopType)
             {
-                // Invalid troop entry?
-                continue;
+                case AttackManager.TroopType.Ghost: prefabToSpawn = ghostPrefab; break;
+                case AttackManager.TroopType.Alien: prefabToSpawn = alienPrefab; break;
+                case AttackManager.TroopType.Robot: prefabToSpawn = robotPrefab; break;
             }
 
-            string attackerId = troopSnapshot.Child("attackerId").Value.ToString();
+            // read lat/lon
+            if (!troopSnapshot.HasChild("currentLat") || !troopSnapshot.HasChild("currentLon"))
+                continue; // skip if missing
+
             double curLat = double.Parse(troopSnapshot.Child("currentLat").Value.ToString());
             double curLon = double.Parse(troopSnapshot.Child("currentLon").Value.ToString());
-
             Vector2d coords = new Vector2d(curLat, curLon);
             Vector3 worldPos = map.GeoToWorldPosition(coords, true);
 
-
-            var troopGO = Instantiate(troopPrefab, worldPos, Quaternion.identity);
-            var troopController = troopGO.GetComponent<TroopController>();
-            if (troopController != null)
+            // Instantiate
+            GameObject troopGO = Instantiate(prefabToSpawn, worldPos, Quaternion.identity);
+            TroopController ctrl = troopGO.GetComponent<TroopController>();
+            if (ctrl != null)
             {
-                troopController.SetMap(map);  // <---- Provide the map reference
-                troopController.InitFromSnapshot(troopId, troopSnapshot);
+                ctrl.SetMap(map);
+                ctrl.InitFromSnapshot(troopId, troopSnapshot);
             }
+
             spawnedTroops[troopId] = troopGO;
         }
     }
-
-
-
-    private void LateUpdate()
-    {
-        // In LateUpdate, we simply let each TroopController handle its own movement,
-        // or you can re-position them if you store lat/lon in this manager.
-        // Typically, each TroopController will check the DB or use RPC approach
-        // to update its own position.
-    }
 }
+
 

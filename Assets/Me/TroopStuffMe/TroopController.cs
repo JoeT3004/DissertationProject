@@ -30,7 +30,7 @@ public class TroopController : MonoBehaviour
 
 
     // Speed is now expressed in meters/second
-    [SerializeField] public float speed = 0.001f;
+    [SerializeField] public float speed = 100f;
 
     private Vector2d currentCoords;
     // Total journey distance (in meters), computed once in InitFromSnapshot.

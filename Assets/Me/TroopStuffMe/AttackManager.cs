@@ -1,13 +1,30 @@
 using UnityEngine;
 using Mapbox.Utils;
 using System.Collections;
+using System.Collections.Generic;
 
 public class AttackManager : MonoBehaviour
 {
     public static AttackManager Instance { get; private set; }
 
     [SerializeField] private TroopSelectPanel troopSelectPanel;
-    [SerializeField] private int costPerTroop = 20;
+
+
+    [Header("Troop Damage")]
+    [SerializeField] private int ghostDamage = 50;
+    [SerializeField] private int alienDamage = 20;
+    [SerializeField] private int robotDamage = 80;
+
+    // ADD matching cost fields so AttackManager knows each cost:
+    [Header("Troop Costs")]
+    [SerializeField] private int ghostCost = 20;
+    [SerializeField] private int alienCost = 25;
+    [SerializeField] private int robotCost = 40;
+
+    public int GhostCost => ghostCost;
+    public int AlienCost => alienCost;
+    public int RobotCost => robotCost;
+
 
     private void Awake()
     {
@@ -33,7 +50,7 @@ public class AttackManager : MonoBehaviour
 
         Debug.Log("[AttackManager] HasBase() == true, showing TroopSelectPanel");
         troopSelectPanel.gameObject.SetActive(true);
-        troopSelectPanel.Show(enemyOwnerId, enemyUsername, costPerTroop);
+        troopSelectPanel.Show(enemyOwnerId, enemyUsername);
         
     }
 
@@ -41,7 +58,7 @@ public class AttackManager : MonoBehaviour
     /// <summary>
     /// Called by TroopSelectPanel when user presses "Attack".
     /// </summary>
-    public void LaunchAttack(string targetBaseOwnerId, int troopCount)
+    public void LaunchAttack(string targetBaseOwnerId, int troopCount, TroopType troopType)
     {
         if (!BaseManager.Instance.HasBase())
         {
@@ -49,21 +66,39 @@ public class AttackManager : MonoBehaviour
             return;
         }
 
-        // 1) Calculate total cost
-        int totalCost = troopCount * costPerTroop;
-        int currentScore = ScoreManager.Instance.GetCurrentScore();
+        // 1) Retrieve the correct cost & damage for the chosen troop type
+        int costPerTroop = 0;
+        int damageValue = 0;
+        switch (troopType)
+        {
+            case TroopType.Ghost:
+                costPerTroop = ghostCost;
+                damageValue = ghostDamage;
+                break;
+            case TroopType.Alien:
+                costPerTroop = alienCost;
+                damageValue = alienDamage;
+                break;
+            case TroopType.Robot:
+                costPerTroop = robotCost;
+                damageValue = robotDamage;
+                break;
+        }
 
-        // 2) Check if user has enough score
+        // 2) Now cost is separate from damage
+        int totalCost = troopCount * costPerTroop;
+
+        // 3) Check user’s score
+        int currentScore = ScoreManager.Instance.GetCurrentScore();
         if (currentScore < totalCost)
         {
             Debug.LogWarning($"Not enough score. Need {totalCost}, have {currentScore}. Aborting attack.");
             return;
         }
-
-        // 3) Deduct cost
+        // 4) Deduct cost
         ScoreManager.Instance.AddPoints(-totalCost);
 
-        // 4) Get coords
+        // (The rest is the same:)
         var myBaseLatLon = BaseManager.Instance.GetBaseCoordinates();
         var targetCoords = AllBasesManager.Instance.GetBaseCoordinates(targetBaseOwnerId);
         if (targetCoords == null)
@@ -72,80 +107,75 @@ public class AttackManager : MonoBehaviour
             return;
         }
 
-        // 5) Spawn troops in a coroutine so they come out in sequence
-        StartCoroutine(SpawnTroopQueue(myBaseLatLon, targetCoords.Value, targetBaseOwnerId, troopCount));
+        // 5) Spawn them in sequence:
+        StartCoroutine(SpawnTroopQueue(myBaseLatLon, targetCoords.Value, targetBaseOwnerId, troopCount, troopType, damageValue));
 
-        Debug.Log($"Launched attack on {targetBaseOwnerId} with {troopCount} troops. Cost {totalCost} points.");
+        Debug.Log($"Launched attack with {troopCount} {troopType}, Cost={totalCost}, Damage={damageValue}");
     }
 
-    /// <summary>
-    /// Spawns each troop with a slight delay, so they don't all arrive at the same time.
-    /// </summary>
-    private IEnumerator SpawnTroopQueue(Vector2d startCoords, Vector2d endCoords, string targetBaseOwnerId, int troopCount)
+    private IEnumerator SpawnTroopQueue(
+        Vector2d startCoords, Vector2d endCoords,
+        string targetBaseOwnerId, int troopCount,
+        TroopType troopType, int damageValue)
     {
         for (int i = 0; i < troopCount; i++)
         {
-            CreateNewTroopRecord(startCoords, endCoords, targetBaseOwnerId);
-
-            // Wait e.g. 3 seconds between spawns (or whatever you want)
+            CreateNewTroopRecord(startCoords, endCoords, targetBaseOwnerId, troopType, damageValue);
             yield return new WaitForSeconds(3f);
         }
     }
 
 
 
-    private void CreateNewTroopRecord(
-    Vector2d startCoords,
-    Vector2d endCoords,
-    string targetBaseOwnerId)
+    public enum TroopType
     {
+        Ghost,
+        Alien, // replaced Wizard with Alien
+        Robot
+    }
 
 
+
+
+
+    private void CreateNewTroopRecord(Vector2d startCoords, Vector2d endCoords,
+                                  string targetBaseOwnerId, TroopType troopType,
+                                  int damageValue)
+    {
         string troopId = System.Guid.NewGuid().ToString();
-        var troopRef = FirebaseInit.DBReference
-            .Child("troops")
-            .Child(troopId);
+        var troopRef = FirebaseInit.DBReference.Child("troops").Child(troopId);
 
-        // We assume attacker is local player:
-        string attackerUsername = UsernameManager.Username; // from your existing code
-                                                            // We get target's username from AllBasesManager or DB. 
-                                                            // If AllBasesManager doesn't have that method, you'll need to implement it
-        string targetUsername = AllBasesManager.Instance.GetUsernameOfUser(targetBaseOwnerId);
-
-        var troopData = new System.Collections.Generic.Dictionary<string, object>();
-
-        double distance = Vector2d.Distance(startCoords, endCoords);
-        float troopSpeed = 0.0001f;
-        double travelTimeSec = distance / troopSpeed;
-
-        troopData["travelTimeSec"] = travelTimeSec;
-
+        var troopData = new Dictionary<string, object>();
+        troopData["troopType"] = troopType.ToString();
+        troopData["damage"] = damageValue;
 
         troopData["attackerId"] = PlayerPrefs.GetString("playerId");
-        troopData["attackerUsername"] = attackerUsername;  // store it
-        troopData["targetBaseOwnerId"] = targetBaseOwnerId;
-        troopData["targetUsername"] = targetUsername;      // store it
+        troopData["attackerUsername"] = UsernameManager.Username;
 
+        // Get the target’s actual username from AllBasesManager:
+        string targetUsername = AllBasesManager.Instance.GetUsernameOfUser(targetBaseOwnerId);
+        // Store BOTH:
+        troopData["targetBaseOwnerId"] = targetBaseOwnerId;
+        troopData["targetUsername"] = targetUsername;
+
+        // Etc...
         troopData["startLat"] = startCoords.x;
         troopData["startLon"] = startCoords.y;
-        troopData["currentLat"] = startCoords.x;  // at spawn
+        troopData["currentLat"] = startCoords.x;
         troopData["currentLon"] = startCoords.y;
         troopData["endLat"] = endCoords.x;
         troopData["endLon"] = endCoords.y;
-        troopData["damage"] = 50;
 
         troopRef.SetValueAsync(troopData).ContinueWith(task =>
         {
             if (task.IsFaulted || task.IsCanceled)
-            {
                 Debug.LogWarning("Failed to create new troop record in Firebase.");
-            }
             else
-            {
                 Debug.Log($"Created troop record: {troopId}");
-            }
         });
     }
+
+
 
 
 

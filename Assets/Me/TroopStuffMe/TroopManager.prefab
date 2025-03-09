@@ -1,0 +1,70 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &3602959260700143982
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2649850774736674423}
+  - component: {fileID: 5119398997121133773}
+  - component: {fileID: 864464550480223299}
+  m_Layer: 0
+  m_Name: TroopManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &2649850774736674423
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3602959260700143982}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &5119398997121133773
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3602959260700143982}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 07a781de06bd3f345a71dca6cd569f6e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  troopSelectPanel: {fileID: 8366351839713446247, guid: 79c7266ca8a8fd847a7fa7dc106dbce8, type: 3}
+  ghostDamage: 50
+  alienDamage: 20
+  robotDamage: 120
+  ghostCost: 20
+  alienCost: 25
+  robotCost: 40
+--- !u!114 &864464550480223299
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3602959260700143982}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bf601995eb9ad874692c3bfba84f9974, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  map: {fileID: 0}
+  ghostPrefab: {fileID: 5973044776658685857, guid: 0aae44b9eb589de43bfff6f019e90470, type: 3}
+  alienPrefab: {fileID: 5973044776658685857, guid: 003f5a73876211d4282a8c6013c500e7, type: 3}
+  robotPrefab: {fileID: 5973044776658685857, guid: e1c5b24ca873c664989ca700aa6f9e68, type: 3}
