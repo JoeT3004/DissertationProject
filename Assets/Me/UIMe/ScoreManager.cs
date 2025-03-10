@@ -1,9 +1,13 @@
-using System.Collections;
-using TMPro;
 using UnityEngine;
+using TMPro;
 using Firebase.Database;
 using Firebase.Extensions;
+using System.Collections;
 
+/// <summary>
+/// Handles the player's score, stored in Firebase under "users/{playerId}/score".
+/// Listens in real-time and updates the UI (scoreText).
+/// </summary>
 public class ScoreManager : MonoBehaviour
 {
     public static ScoreManager Instance;
@@ -15,17 +19,16 @@ public class ScoreManager : MonoBehaviour
 
     private void Awake()
     {
-        // Basic singleton pattern
         if (Instance == null) Instance = this;
         else Destroy(gameObject);
     }
 
     private IEnumerator Start()
     {
-        // Wait until Firebase is ready
+        // Wait for Firebase
         yield return new WaitUntil(() => FirebaseInit.IsFirebaseReady);
 
-        // Retrieve or create playerId
+        // Make sure we have a playerId
         if (!PlayerPrefs.HasKey("playerId"))
         {
             string newId = System.Guid.NewGuid().ToString();
@@ -33,10 +36,10 @@ public class ScoreManager : MonoBehaviour
         }
         playerId = PlayerPrefs.GetString("playerId");
 
-        // Load initial score (just once)
+        // Load initial score
         LoadScoreFromFirebase();
 
-        // **Subscribe to real-time score updates**
+        // Subscribe to real-time changes of "score"
         FirebaseInit.DBReference
             .Child("users")
             .Child(playerId)
@@ -46,7 +49,6 @@ public class ScoreManager : MonoBehaviour
 
     private void OnDestroy()
     {
-        // Unsubscribe if the DBReference still exists
         if (FirebaseInit.DBReference != null && !string.IsNullOrEmpty(playerId))
         {
             FirebaseInit.DBReference
@@ -57,7 +59,9 @@ public class ScoreManager : MonoBehaviour
         }
     }
 
-    // ----------- Score Real-Time Listener -----------
+    /// <summary>
+    /// Called whenever the "score" node changes in DB. Updates local and UI.
+    /// </summary>
     private void OnScoreChanged(object sender, ValueChangedEventArgs e)
     {
         if (e.DatabaseError != null)
@@ -68,7 +72,7 @@ public class ScoreManager : MonoBehaviour
 
         if (!e.Snapshot.Exists)
         {
-            // If no score node, re-init to 50
+            // If no score node => re-init to 50
             currentScore = 50;
             SaveScoreToFirebase();
         }
@@ -81,15 +85,17 @@ public class ScoreManager : MonoBehaviour
         Debug.Log("[ScoreManager] OnScoreChanged -> new score = " + currentScore);
     }
 
-    // ------------------------------------------------
-
+    /// <summary>
+    /// Loads initial score from DB. If none found, sets to 50.
+    /// </summary>
     private void LoadScoreFromFirebase()
     {
         FirebaseInit.DBReference
             .Child("users")
             .Child(playerId)
             .Child("score")
-            .GetValueAsync().ContinueWithOnMainThread(task =>
+            .GetValueAsync()
+            .ContinueWithOnMainThread(task =>
             {
                 if (task.IsFaulted || task.IsCanceled)
                 {
@@ -98,10 +104,9 @@ public class ScoreManager : MonoBehaviour
                     return;
                 }
 
-                DataSnapshot snapshot = task.Result;
+                var snapshot = task.Result;
                 if (!snapshot.Exists)
                 {
-                    // New player
                     currentScore = 50;
                     SaveScoreToFirebase();
                 }
@@ -114,6 +119,9 @@ public class ScoreManager : MonoBehaviour
             });
     }
 
+    /// <summary>
+    /// Persists the current score to Firebase under "users/{playerId}/score".
+    /// </summary>
     private void SaveScoreToFirebase()
     {
         FirebaseInit.DBReference
@@ -134,7 +142,9 @@ public class ScoreManager : MonoBehaviour
             });
     }
 
-    // Called by BaseManager or any script that modifies the score
+    /// <summary>
+    /// Adds 'points' to currentScore (can be negative), then updates DB.
+    /// </summary>
     public void AddPoints(int points)
     {
         currentScore += points;
@@ -150,5 +160,8 @@ public class ScoreManager : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Returns the current local score. 
+    /// </summary>
     public int GetCurrentScore() => currentScore;
 }

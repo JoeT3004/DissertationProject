@@ -1,10 +1,13 @@
 using UnityEngine;
 
+/// <summary>
+/// Dynamically scales a UI element inversely based on its parent's scale, 
+/// so that the UI remains consistently sized in screen space.
+/// </summary>
 public class UIScaleAdjuster : MonoBehaviour
 {
-    // Set attenuation between 0 and 1.
-    // 0: no counter-scaling (UI follows parent's scale)
-    // 1: full inverse scaling (UI becomes smaller as parent scales up)
+    [Range(0f, 1f)]
+    [Tooltip("0 = no inverse scaling, 1 = fully inverse scaling.")]
     [SerializeField] private float attenuation = 1f;
 
     private Vector3 initialScale;
@@ -16,12 +19,12 @@ public class UIScaleAdjuster : MonoBehaviour
 
     private void Update()
     {
-        // Get the parent's scale (assuming uniform scaling).
+        if (transform.parent == null) return;
+
+        // The parent's uniform scale
         float parentScale = transform.parent.lossyScale.x;
 
-        // Instead of adding to the scale, we invert it.
-        // Lerp lets you blend between the parent's scale (attenuation = 0) 
-        // and the inverse of the parent's scale (attenuation = 1).
+        // Lerp between normal scale and inverse scale
         float adjustedFactor = Mathf.Lerp(parentScale, 1f / parentScale, attenuation);
 
         transform.localScale = initialScale * adjustedFactor;

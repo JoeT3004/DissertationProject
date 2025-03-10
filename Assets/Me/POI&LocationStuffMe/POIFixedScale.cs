@@ -1,20 +1,27 @@
 using UnityEngine;
 using Mapbox.Unity.Map;
 
+/// <summary>
+/// Keeps POIs at a fixed scale even if their parent or the map is scaled. 
+/// Also optionally hides them if zoom < minZoomToDisplay.
+/// </summary>
 public class POIFixedScale : MonoBehaviour
 {
     private Vector3 initialScale;
     private AbstractMap _map;
 
-    // Set the minimum zoom at which the POI should be visible.
-    [SerializeField] private float minZoomToDisplay = 12.0f;
+    [SerializeField]
+    [Tooltip("Hide the POI if the map's zoom is below this value.")]
+    private float minZoomToDisplay = 12.0f;
+
     private bool _isVisible = true;
 
     private void Start()
     {
-        // Cache the original scale.
+        // Cache the original scale
         initialScale = transform.localScale;
-        // Find the map in the scene. Alternatively, you could assign this manually.
+
+        // Find the map in the scene
         _map = FindObjectOfType<AbstractMap>();
     }
 
@@ -22,7 +29,6 @@ public class POIFixedScale : MonoBehaviour
     {
         if (_map != null)
         {
-            // Determine if the POI should be visible based on the current zoom.
             bool shouldShow = _map.Zoom >= minZoomToDisplay;
             if (shouldShow != _isVisible)
             {
@@ -31,32 +37,33 @@ public class POIFixedScale : MonoBehaviour
             }
         }
 
-        // If the POI is still parented to a scaling object, adjust its scale inversely.
-        if (transform.parent != null)
+        // If the POI is parented under a scaling object, 
+        // scale inversely to keep it the same size
+        if (_isVisible && transform.parent != null)
         {
-            // Only update the scale when visible.
-            if (_isVisible)
-            {
-                float inverseScaleFactor = 1f / transform.parent.lossyScale.x;
-                transform.localScale = initialScale * inverseScaleFactor;
-            }
+            float inverseScaleFactor = 1f / transform.parent.lossyScale.x;
+            transform.localScale = initialScale * inverseScaleFactor;
+        }
+        else if (!_isVisible)
+        {
+            // Hide => do nothing
         }
         else
         {
+            // If no parent, just keep initial scale
             transform.localScale = initialScale;
         }
     }
 
     /// <summary>
-    /// Enables or disables all renderers in the POI so that it can be shown or hidden.
+    /// Enables or disables all renderers in the POI, effectively hiding or showing it.
     /// </summary>
-    /// <param name="visible">True to show, false to hide.</param>
     private void SetVisibility(bool visible)
     {
         Renderer[] renderers = GetComponentsInChildren<Renderer>();
-        foreach (Renderer renderer in renderers)
+        foreach (Renderer r in renderers)
         {
-            renderer.enabled = visible;
+            r.enabled = visible;
         }
     }
 }

@@ -38,7 +38,13 @@ public class TroopSelectPanel : MonoBehaviour
     [SerializeField] private Button attackButton;
     [SerializeField] private Button cancelButton;
 
-    
+    // ========== LOCKED TEXT OVERLAYS ==========`
+    [Header("Locked Text Overlays")]
+    [SerializeField] private TMP_Text alienLockedText;
+    [SerializeField] private TMP_Text robotLockedText;
+
+
+
 
 
 
@@ -53,6 +59,10 @@ public class TroopSelectPanel : MonoBehaviour
     [SerializeField] private TroopController ghostTroopPrototype;
     [SerializeField] private TroopController alienTroopPrototype;
     [SerializeField] private TroopController robotTroopPrototype;
+
+
+
+
 
     private void OnEnable()
     {
@@ -112,19 +122,33 @@ public class TroopSelectPanel : MonoBehaviour
 
     private void RefreshAllUI()
     {
+        // 1) Update costs from AttackManager
         troopCostText_Ghost.text = $"Cost: {AttackManager.Instance.GhostCost}";
         troopCostText_Alien.text = $"Cost: {AttackManager.Instance.AlienCost}";
         troopCostText_Robot.text = $"Cost: {AttackManager.Instance.RobotCost}";
 
-        // Show counts
+        // 2) Show troop counts
         troopCountText_Ghost.text = ghostCount.ToString();
         troopCountText_Alien.text = alienCount.ToString();
         troopCountText_Robot.text = robotCount.ToString();
 
-        // Recalc times from the prototypes, etc...
+        // 3) Recalc travel times for each type
         UpdateTimeEstimateForType(ghostTroopPrototype, timeToReachText_Ghost);
         UpdateTimeEstimateForType(alienTroopPrototype, timeToReachText_Alien);
         UpdateTimeEstimateForType(robotTroopPrototype, timeToReachText_Robot);
+
+        // 4) Determine if Alien & Robot are unlocked based on local base level:
+        int myBaseLevel = BaseManager.Instance.CurrentLevel;
+
+        bool alienUnlocked = (myBaseLevel >= 2);
+        plusButton_Alien.interactable = alienUnlocked;
+        minusButton_Alien.interactable = alienUnlocked;
+        alienLockedText.gameObject.SetActive(!alienUnlocked);
+
+        bool robotUnlocked = (myBaseLevel >= 5);
+        plusButton_Robot.interactable = robotUnlocked;
+        minusButton_Robot.interactable = robotUnlocked;
+        robotLockedText.gameObject.SetActive(!robotUnlocked);
     }
 
 

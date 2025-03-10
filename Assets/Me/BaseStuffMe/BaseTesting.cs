@@ -4,9 +4,9 @@ using Firebase.Extensions;
 using Mapbox.Unity.Map;
 using Mapbox.Utils;
 
-
 /// <summary>
-/// Spawns 'fake' enemy bases on Firebase so you can test tapping them in-game.
+/// Spawns and removes "fake" bases in Firebase for testing.
+/// Useful if you want some enemy bases to tap on without needing real players.
 /// </summary>
 public class BaseTesting : MonoBehaviour
 {
@@ -27,12 +27,18 @@ public class BaseTesting : MonoBehaviour
     [SerializeField] private string fakePlayerPrefix = "TestPlayer_";
 
     /// <summary>
-    /// Creates N fake players, each with a 'base' node that includes lat/lon, health, level, username, 
-    /// plus a 'score' node. These appear as "enemy bases" in AllBasesManager.
+    /// Creates N fake players in Firebase, each with:
+    ///   - A 'score' node (50 points),
+    ///   - A 'base' node with random lat/lon near 'centerLatitude, centerLongitude',
+    ///   - health=100, level=1, and username "FakeBase_i".
+    /// These bases appear as "enemy bases" in AllBasesManager if you're not the local user.
+    /// 
+    /// This is invoked either via a context menu or from the editor/inspector button.
     /// </summary>
     [ContextMenu("SpawnFakeBases")]
     public void SpawnFakeBases()
     {
+        // Check if Firebase is ready
         if (!FirebaseInit.IsFirebaseReady)
         {
             Debug.LogWarning("[BaseTesting] Firebase not ready yet. Aborting spawn.");
@@ -41,27 +47,27 @@ public class BaseTesting : MonoBehaviour
 
         Debug.Log($"[BaseTesting] Spawning {numberOfFakeBases} fake bases...");
 
-        // Optionally re-center the map around the test area
+        // Optionally re-center the map to the test area for convenience
         RecenterMap();
 
         DatabaseReference db = FirebaseInit.DBReference;
 
+        // Create each fake base
         for (int i = 0; i < numberOfFakeBases; i++)
         {
-            // Each fake player gets a unique ID like "TestPlayer_0"
             string fakePlayerId = fakePlayerPrefix + i;
 
-            // Randomly offset lat/lon
+            // random lat/lon offset
             double lat = centerLatitude + Random.Range(-(float)latLonRandomRange, (float)latLonRandomRange);
             double lon = centerLongitude + Random.Range(-(float)latLonRandomRange, (float)latLonRandomRange);
 
-            // 1) Set a score => "users/{fakePlayerId}/score"
+            // 1) set a default score
             db.Child("users")
               .Child(fakePlayerId)
               .Child("score")
               .SetValueAsync(50);
 
-            // 2) Create a "base" node => "users/{fakePlayerId}/base"
+            // 2) create a "base" node
             DatabaseReference baseRef = db.Child("users")
                                           .Child(fakePlayerId)
                                           .Child("base");
@@ -71,7 +77,7 @@ public class BaseTesting : MonoBehaviour
             baseRef.Child("health").SetValueAsync(100);
             baseRef.Child("level").SetValueAsync(1);
 
-            // Each base has a unique username => "FakeBase_0", etc.
+            // e.g. "FakeBase_0"
             string fakeUsername = "FakeBase_" + i;
             baseRef.Child("username").SetValueAsync(fakeUsername);
 
@@ -82,7 +88,8 @@ public class BaseTesting : MonoBehaviour
     }
 
     /// <summary>
-    /// Removes all the fake bases that were spawned using the same prefix and count.
+    /// Removes the same N fake bases from Firebase that match the 'fakePlayerPrefix' 
+    /// and 'numberOfFakeBases' index range.
     /// </summary>
     [ContextMenu("RemoveFakeBases")]
     public void RemoveFakeBases()
@@ -95,6 +102,7 @@ public class BaseTesting : MonoBehaviour
 
         Debug.Log("[BaseTesting] Removing all fake bases...");
 
+        // For each base, remove that entire user node from "users"
         for (int i = 0; i < numberOfFakeBases; i++)
         {
             string fakePlayerId = fakePlayerPrefix + i;
@@ -104,16 +112,21 @@ public class BaseTesting : MonoBehaviour
                 .RemoveValueAsync()
                 .ContinueWithOnMainThread(task =>
                 {
-                    if (task.IsFaulted)
+                    if (task.IsFaulted || task.IsCanceled)
+                    {
                         Debug.LogWarning($"[BaseTesting] Error removing user '{fakePlayerId}'.");
+                    }
                     else
+                    {
                         Debug.Log($"[BaseTesting] Successfully removed user '{fakePlayerId}'.");
+                    }
                 });
         }
     }
 
     /// <summary>
-    /// Optionally recenter the map to the test area so you can see the newly spawned markers more easily.
+    /// Optionally re-center the map to (centerLatitude, centerLongitude). 
+    /// This helps see your new test bases more easily.
     /// </summary>
     private void RecenterMap()
     {

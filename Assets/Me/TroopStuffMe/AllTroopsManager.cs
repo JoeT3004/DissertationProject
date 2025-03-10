@@ -4,41 +4,62 @@ using UnityEngine;
 using Firebase.Database;
 using Mapbox.Unity.Map;
 using Mapbox.Utils;
+
+/// <summary>
+/// Manages all troops in the scene by listening to the Firebase "troops" node. 
+/// Whenever the DB changes, it clears existing troops and spawns the updated list.
+/// </summary>
 public class AllTroopsManager : MonoBehaviour
 {
     public static AllTroopsManager Instance { get; private set; }
 
     [SerializeField] private AbstractMap map;
+
     [Header("Troop Prefabs")]
     [SerializeField] private GameObject ghostPrefab;
     [SerializeField] private GameObject alienPrefab;
     [SerializeField] private GameObject robotPrefab;
 
-    private Dictionary<string, GameObject> spawnedTroops = new Dictionary<string, GameObject>();
+    // Dictionary to track spawned troops by their troopId in DB
+    private readonly Dictionary<string, GameObject> spawnedTroops = new Dictionary<string, GameObject>();
 
+    /// <summary>
+    /// Ensures we only have one instance of AllTroopsManager in the scene.
+    /// </summary>
     private void Awake()
     {
         if (Instance == null) Instance = this;
         else Destroy(gameObject);
     }
 
+    /// <summary>
+    /// Waits for Firebase, then subscribes to "troops" ValueChanged.
+    /// </summary>
     private IEnumerator Start()
     {
-        // Wait for Firebase to be ready
         while (!FirebaseInit.IsFirebaseReady)
             yield return null;
 
-        // Listen for changes under "troops"
-        FirebaseInit.DBReference.Child("troops").ValueChanged += OnTroopsValueChanged;
+        FirebaseInit.DBReference
+            .Child("troops")
+            .ValueChanged += OnTroopsValueChanged;
     }
 
+    /// <summary>
+    /// Removes the DB listener on destroy, preventing memory leaks.
+    /// </summary>
     private void OnDestroy()
     {
-        // Unsubscribe to avoid memory leaks
         if (FirebaseInit.DBReference != null)
+        {
             FirebaseInit.DBReference.Child("troops").ValueChanged -= OnTroopsValueChanged;
+        }
     }
 
+    /// <summary>
+    /// Called whenever the "troops" node in Firebase changes. 
+    /// It spawns or removes troops in the scene accordingly.
+    /// </summary>
     private void OnTroopsValueChanged(object sender, ValueChangedEventArgs e)
     {
         if (e.DatabaseError != null)
@@ -47,39 +68,31 @@ public class AllTroopsManager : MonoBehaviour
             return;
         }
 
-        // Clear out old troops
+        // Clear existing troop GameObjects
         foreach (var kvp in spawnedTroops)
+        {
             Destroy(kvp.Value);
+        }
         spawnedTroops.Clear();
 
-        // If "troops" node is empty, do nothing
-        if (!e.Snapshot.Exists) return;
+        if (!e.Snapshot.Exists) return; // no troops in DB
 
-        // Iterate each troop
+        // Iterate each troop entry in DB
         foreach (var troopSnapshot in e.Snapshot.Children)
         {
             string troopId = troopSnapshot.Key;
 
-            // Grab the "troopType" to pick correct prefab
+            // Must have troopType, currentLat, currentLon
             if (!troopSnapshot.HasChild("troopType")) continue;
+            if (!troopSnapshot.HasChild("currentLat") || !troopSnapshot.HasChild("currentLon")) continue;
+
+            // Figure out which prefab to use
             string troopTypeString = troopSnapshot.Child("troopType").Value.ToString();
-
             AttackManager.TroopType troopType = (AttackManager.TroopType)
-                 System.Enum.Parse(typeof(AttackManager.TroopType), troopTypeString);
+                System.Enum.Parse(typeof(AttackManager.TroopType), troopTypeString);
+            GameObject prefabToSpawn = GetTroopPrefab(troopType);
 
-            // Decide which prefab
-            GameObject prefabToSpawn = ghostPrefab;
-            switch (troopType)
-            {
-                case AttackManager.TroopType.Ghost: prefabToSpawn = ghostPrefab; break;
-                case AttackManager.TroopType.Alien: prefabToSpawn = alienPrefab; break;
-                case AttackManager.TroopType.Robot: prefabToSpawn = robotPrefab; break;
-            }
-
-            // read lat/lon
-            if (!troopSnapshot.HasChild("currentLat") || !troopSnapshot.HasChild("currentLon"))
-                continue; // skip if missing
-
+            // Convert lat/lon to world space
             double curLat = double.Parse(troopSnapshot.Child("currentLat").Value.ToString());
             double curLon = double.Parse(troopSnapshot.Child("currentLon").Value.ToString());
             Vector2d coords = new Vector2d(curLat, curLon);
@@ -87,16 +100,32 @@ public class AllTroopsManager : MonoBehaviour
 
             // Instantiate
             GameObject troopGO = Instantiate(prefabToSpawn, worldPos, Quaternion.identity);
-            TroopController ctrl = troopGO.GetComponent<TroopController>();
-            if (ctrl != null)
+            TroopController controller = troopGO.GetComponent<TroopController>();
+            if (controller != null)
             {
-                ctrl.SetMap(map);
-                ctrl.InitFromSnapshot(troopId, troopSnapshot);
+                controller.SetMap(map);
+                controller.InitFromSnapshot(troopId, troopSnapshot);
             }
 
             spawnedTroops[troopId] = troopGO;
         }
     }
+
+    /// <summary>
+    /// Helper method to pick the correct troop prefab based on TroopType.
+    /// </summary>
+    private GameObject GetTroopPrefab(AttackManager.TroopType t)
+    {
+        switch (t)
+        {
+            case AttackManager.TroopType.Ghost:
+                return ghostPrefab;
+            case AttackManager.TroopType.Alien:
+                return alienPrefab;
+            case AttackManager.TroopType.Robot:
+                return robotPrefab;
+            default:
+                return ghostPrefab;
+        }
+    }
 }
-
-

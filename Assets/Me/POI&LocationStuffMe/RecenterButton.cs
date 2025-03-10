@@ -1,17 +1,19 @@
 using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using Mapbox.Unity.Map;
 using Mapbox.Unity.Location;
 using Mapbox.Utils;
 
+/// <summary>
+/// Simple script for a UI button that re-centers the map on the player's current location.
+/// Optionally does so automatically after a short delay on startup.
+/// </summary>
 public class RecenterButton : MonoBehaviour
 {
-    [SerializeField]
-    private AbstractMap _map;
+    [SerializeField] private AbstractMap _map;
     private ILocationProvider _locationProvider;
 
-    void Start()
+    private void Start()
     {
         if (LocationProviderFactory.Instance != null)
         {
@@ -19,31 +21,32 @@ public class RecenterButton : MonoBehaviour
         }
         else
         {
-            Debug.LogWarning("No LocationProviderFactory.Instance available in Start");
+            Debug.LogWarning("[RecenterButton] No LocationProviderFactory.Instance available in Start");
         }
 
-        // Call the recenter method automatically at the start
+        // Optionally recenter once after delay
         StartCoroutine(InvokeRecenterAfterDelay());
     }
 
-    IEnumerator InvokeRecenterAfterDelay()
+    private IEnumerator InvokeRecenterAfterDelay()
     {
-        // Ensure there's a slight delay to allow Mapbox to initialize
-        yield return new WaitForSeconds(1.0f);
+        yield return new WaitForSeconds(1f);
         OnRecenterButtonPressed();
     }
 
-    // This method can be called by your UI Button's OnClick event
+    /// <summary>
+    /// Called by the UI Button's OnClick() event to center the map on the user's location.
+    /// </summary>
     public void OnRecenterButtonPressed()
     {
         if (_locationProvider == null)
         {
-            Debug.Log("LocationProvider is NULL!");
+            Debug.Log("[RecenterButton] LocationProvider is NULL!");
             return;
         }
 
         var location = _locationProvider.CurrentLocation;
-        Debug.Log($"Current lat/lon: {location.LatitudeLongitude}  ServiceEnabled? {location.IsLocationServiceEnabled}");
+        Debug.Log($"[RecenterButton] Current lat/lon: {location.LatitudeLongitude}, ServiceEnabled? {location.IsLocationServiceEnabled}");
 
         if (location.IsLocationServiceEnabled && location.LatitudeLongitude != Vector2d.zero)
         {
@@ -51,7 +54,7 @@ public class RecenterButton : MonoBehaviour
         }
         else
         {
-            Debug.LogWarning("No valid location or service disabled.");
+            Debug.LogWarning("[RecenterButton] No valid location or service is disabled.");
         }
     }
 }

@@ -1,14 +1,20 @@
+using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
-using Mapbox.Unity.Map;
-using Mapbox.Utils;
+using TMPro;
 using Firebase.Database;
 using Firebase.Extensions;
-using TMPro;
-using System.Collections;
+using Mapbox.Unity.Map;
+using Mapbox.Utils;
 
+/// <summary>
+/// Manages the local player's base: placing, upgrading, removing, and real-time sync with Firebase.
+/// Also handles UI for Tab2, base prompts, base health/level, etc.
+/// </summary>
 public class BaseManager : MonoBehaviour
 {
+    public static BaseManager Instance { get; private set; }
+
     [Header("Map & Marker Setup")]
     [SerializeField] private AbstractMap map;
     [SerializeField] private GameObject baseMarkerPrefab;
@@ -32,27 +38,27 @@ public class BaseManager : MonoBehaviour
     private int currentLevel;
     private int totalScoreSpentOnUpgrades;
 
-    public static BaseManager Instance { get; private set; }
-
+    // Public properties
     public bool HasBase() => hasBase;
     public bool IsPlacingBase() => isPlacingBase;
     public int CurrentHealth => currentHealth;
     public int CurrentLevel => currentLevel;
     public bool IsPromptPanelActive() => promptPanel != null && promptPanel.activeSelf;
 
+    /// <summary>
+    /// Returns the lat/lon of the local player's base.
+    /// </summary>
+    public Vector2d GetBaseCoordinates() => baseCoordinates;
 
-    public Vector2d GetBaseCoordinates()
-    {
-        return baseCoordinates;
-    }
-
+    /// <summary>
+    /// Basic singleton pattern for BaseManager.
+    /// </summary>
     private void Awake()
     {
-        // Basic singleton pattern
         if (Instance == null) Instance = this;
         else Destroy(gameObject);
 
-        // Fallback if map not assigned in Inspector:
+        // Fallback if map not assigned
         if (!map)
         {
             map = FindObjectOfType<AbstractMap>();
@@ -63,12 +69,12 @@ public class BaseManager : MonoBehaviour
         }
     }
 
-    private System.Collections.IEnumerator Start()
+    private IEnumerator Start()
     {
         while (!FirebaseInit.IsFirebaseReady)
             yield return null;
 
-        // PlayerID
+        // Player ID
         if (!PlayerPrefs.HasKey("playerId"))
         {
             string newId = System.Guid.NewGuid().ToString();
@@ -77,17 +83,17 @@ public class BaseManager : MonoBehaviour
         playerId = PlayerPrefs.GetString("playerId");
         Debug.Log("[BaseManager] Local playerId: " + playerId);
 
-        if (promptPanel != null) promptPanel.SetActive(false);
-        if (placeBaseMessage != null) placeBaseMessage.SetActive(false);
-        if (placeBaseButton != null) placeBaseButton.interactable = true;
+        if (promptPanel) promptPanel.SetActive(false);
+        if (placeBaseMessage) placeBaseMessage.SetActive(false);
+        if (placeBaseButton) placeBaseButton.interactable = true;
 
-        // Fetch existing base
+        // Fetch existing base from Firebase
         FetchBaseFromFirebase();
     }
 
     private void OnDestroy()
     {
-        // Unsubscribe from base real-time listener, if you set one
+        // Unsubscribe from "base" ValueChanged if we have a reference
         if (!string.IsNullOrEmpty(playerId) && FirebaseInit.DBReference != null)
         {
             FirebaseInit.DBReference
@@ -100,10 +106,10 @@ public class BaseManager : MonoBehaviour
 
     private void Update()
     {
-        // Only if we do NOT have a base and we are placing one
+        // If we do NOT have a base and are in "placing base" mode, 
+        // check for tap or click to place the base
         if (!hasBase && isPlacingBase)
         {
-            // Check for tap/click
             if (Input.touchCount > 0)
             {
                 Touch t = Input.GetTouch(0);
@@ -121,7 +127,7 @@ public class BaseManager : MonoBehaviour
 
     private void LateUpdate()
     {
-        // Reposition marker if we have a base
+        // Keep the local base marker position synced with the map
         if (hasBase && currentBaseMarker != null)
         {
             Vector3 newPos = map.GeoToWorldPosition(baseCoordinates, true);
@@ -129,14 +135,22 @@ public class BaseManager : MonoBehaviour
         }
     }
 
-    // ------------------------------------------
-    //  UI Logic for Tab #1
-    // ------------------------------------------
+    // ---------------------------
+    // UI logic for Tab #1
+    // ---------------------------
+
+    /// <summary>
+    /// Hides the base prompt panel if it exists.
+    /// </summary>
     public void HidePromptPanel()
     {
         if (promptPanel != null) promptPanel.SetActive(false);
     }
 
+    /// <summary>
+    /// Called (e.g. from TabManager) to re-center the map on the player's base (if they have one).
+    /// Or show a prompt if they do not have a base yet.
+    /// </summary>
     public void ShowBaseOnMap()
     {
         Debug.Log($"[BaseManager] ShowBaseOnMap called. hasBase={hasBase}");
@@ -149,7 +163,7 @@ public class BaseManager : MonoBehaviour
             var tm = FindObjectOfType<TabManager>();
             if (tm != null) tm.SetTabButtonsInteractable(true);
 
-            // Center map on the base
+            // Center map on local base
             map.SetCenterLatitudeLongitude(baseCoordinates);
             map.UpdateMap();
         }
@@ -160,12 +174,10 @@ public class BaseManager : MonoBehaviour
             {
                 HidePromptPanel();
                 if (placeBaseMessage != null) placeBaseMessage.SetActive(true);
-
-                // tabs locked from StartPlacingBase()
             }
             else
             {
-                // Show prompt
+                // Show the prompt to place a base
                 if (promptPanel != null) promptPanel.SetActive(true);
                 if (placeBaseMessage != null) placeBaseMessage.SetActive(false);
 
@@ -175,6 +187,10 @@ public class BaseManager : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Re-centers the map on an enemy base if the coords exist,
+    /// disabling tab switching while the user looks at the enemy location.
+    /// </summary>
     public void ShowEnemyBaseOnMap(Vector2d coords)
     {
         var tm = FindObjectOfType<TabManager>();
@@ -182,13 +198,11 @@ public class BaseManager : MonoBehaviour
 
         map.SetCenterLatitudeLongitude(coords);
         map.UpdateMap();
-
-        // Possibly hide or disable UI like reloadMapCanvas
-        // Or do partial lock: disable panning/zoom in QuadTreeCameraMovement
     }
 
-
-
+    /// <summary>
+    /// User initiates "placing base" mode, which locks out tab switching until the base is placed.
+    /// </summary>
     public void StartPlacingBase()
     {
         if (hasBase)
@@ -211,6 +225,9 @@ public class BaseManager : MonoBehaviour
         Debug.Log("[BaseManager] Now in base-placing mode => tabs locked.");
     }
 
+    /// <summary>
+    /// Takes a screen position (touch/click), converts to lat/lon, and attempts to place the base there.
+    /// </summary>
     private void TryPlaceBaseAtScreenPosition(Vector2 screenPos)
     {
         if (placeBaseMessage != null) placeBaseMessage.SetActive(false);
@@ -227,6 +244,9 @@ public class BaseManager : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Marks the local user as having a base at the given location, spawns the marker, and saves to Firebase.
+    /// </summary>
     private void ConfirmBaseLocation(Vector2d location)
     {
         if (hasBase)
@@ -254,12 +274,15 @@ public class BaseManager : MonoBehaviour
         }
     }
 
-    // ------------------------------------------
-    //  Real-Time Base Updates
-    // ------------------------------------------
+    // ---------------------------
+    // Real-time base updates
+    // ---------------------------
+
+    /// <summary>
+    /// Subscribes to changes for the local user's "base" node in Firebase.
+    /// </summary>
     private void StartListeningToMyBase()
     {
-        // Subscribe to changes for user’s "base" node
         FirebaseInit.DBReference
             .Child("users")
             .Child(playerId)
@@ -267,6 +290,10 @@ public class BaseManager : MonoBehaviour
             .ValueChanged += OnMyBaseChanged;
     }
 
+    /// <summary>
+    /// Updates the base's "username" node in Firebase if DB is ready. 
+    /// Called by UsernameManager or TabManager in some flows.
+    /// </summary>
     public void UpdateUsernameInFirebase(string newUsername)
     {
         if (FirebaseInit.DBReference == null)
@@ -294,7 +321,10 @@ public class BaseManager : MonoBehaviour
         });
     }
 
-
+    /// <summary>
+    /// Called whenever the user's base node changes in DB. Updates local health/level, 
+    /// possibly shows a "destroyed" prompt if destroyedBaseNotify is set, etc.
+    /// </summary>
     private void OnMyBaseChanged(object sender, ValueChangedEventArgs e)
     {
         if (e.DatabaseError != null)
@@ -306,38 +336,32 @@ public class BaseManager : MonoBehaviour
         var snap = e.Snapshot;
         if (!snap.Exists)
         {
-            // Means the base node was removed
+            // Base removed
             hasBase = false;
 
-            // Clean up marker so it disappears from the scene
+            // Destroy local marker
             if (currentBaseMarker != null)
             {
                 Destroy(currentBaseMarker);
                 currentBaseMarker = null;
             }
 
-            // Possibly also refresh UI or other logic
             Debug.Log("[BaseManager] Local base is destroyed => removing local marker.");
-
             return;
         }
 
-
-        // Parse new values
+        // Parse new health/level
         currentHealth = snap.HasChild("health") ? int.Parse(snap.Child("health").Value.ToString()) : 100;
         currentLevel = snap.HasChild("level") ? int.Parse(snap.Child("level").Value.ToString()) : 1;
 
-
-        // check if "destroyedBaseNotify" is set
+        // Check "destroyedBaseNotify"
         if (snap.HasChild("destroyedBaseNotify"))
         {
             bool notify = bool.Parse(snap.Child("destroyedBaseNotify").Value.ToString());
             if (notify)
             {
-                // show a short UI prompt
                 ShowDestroyBasePrompt();
-
-                // reset it to false so we don’t repeatedly show the prompt
+                // Reset the flag
                 FirebaseInit.DBReference
                   .Child("users")
                   .Child(playerId)
@@ -347,14 +371,13 @@ public class BaseManager : MonoBehaviour
             }
         }
 
-
-        // Update local marker UI
+        // Update the local base marker UI
         if (currentBaseMarker)
         {
             var marker = currentBaseMarker.GetComponent<BaseMarker>();
             if (marker != null)
             {
-                // parse username as well
+                // Also parse the base's username
                 string newUsername = snap.HasChild("username")
                     ? snap.Child("username").Value.ToString()
                     : "Unknown";
@@ -363,19 +386,20 @@ public class BaseManager : MonoBehaviour
             }
         }
 
-        // Refresh any UI that displays base stats
+        // Possibly refresh UI
         var tm = FindObjectOfType<TabManager>();
-        if (tm != null)
-        {
-            tm.RefreshCurrentTabUI();
-        }
+        if (tm != null) tm.RefreshCurrentTabUI();
 
         Debug.Log($"[BaseManager] OnMyBaseChanged -> Health={currentHealth}, Level={currentLevel}");
     }
 
-    // ------------------------------------------
-    //  Firebase: Fetch/Save/Remove Base
-    // ------------------------------------------
+    // ---------------------------
+    // Firebase: fetch, save, remove
+    // ---------------------------
+
+    /// <summary>
+    /// Checks Firebase for an existing base for this player, sets up local data, and starts listening to changes if found.
+    /// </summary>
     private void FetchBaseFromFirebase()
     {
         if (FirebaseInit.DBReference == null)
@@ -406,7 +430,7 @@ public class BaseManager : MonoBehaviour
                     return;
                 }
 
-                // We do have a base
+                // We have a base
                 hasBase = true;
 
                 double lat = double.Parse(snap.Child("latitude").Value.ToString());
@@ -437,13 +461,17 @@ public class BaseManager : MonoBehaviour
                 var tm = FindObjectOfType<TabManager>();
                 if (tm != null) tm.RefreshCurrentTabUI();
 
-                Debug.Log($"[BaseManager] Found existing base from database. Health={currentHealth}, Level={currentLevel}");
+                Debug.Log($"[BaseManager] Found existing base. Health={currentHealth}, Level={currentLevel}");
             });
     }
 
+    /// <summary>
+    /// Creates or updates the "base" node for this user in Firebase with default health/level.
+    /// Also sets username if missing.
+    /// </summary>
     private void SaveBaseToFirebase(Vector2d coords)
     {
-        DatabaseReference baseRef = FirebaseInit.DBReference
+        var baseRef = FirebaseInit.DBReference
             .Child("users")
             .Child(playerId)
             .Child("base");
@@ -468,10 +496,13 @@ public class BaseManager : MonoBehaviour
         currentLevel = defaultLevel;
 
         Debug.Log("[BaseManager] Base saved under users/{playerId}/base");
-        // Also start listening to changes if not already
-        StartListeningToMyBase();
+        StartListeningToMyBase(); // if not already
     }
 
+    /// <summary>
+    /// Removes the local user's base from Firebase, including awarding refunds for upgrades, 
+    /// destroying local marker, clearing username, etc.
+    /// </summary>
     public void RemoveBase()
     {
         if (!hasBase)
@@ -480,13 +511,12 @@ public class BaseManager : MonoBehaviour
             return;
         }
 
-        // Refund
+        // Refund all upgrade cost spent
         ScoreManager.Instance.AddPoints(totalScoreSpentOnUpgrades);
         Debug.Log($"[BaseManager] Refunded {totalScoreSpentOnUpgrades} points.");
-
         totalScoreSpentOnUpgrades = 0;
 
-        // Remove the 'base' node
+        // Remove from DB
         FirebaseInit.DBReference
             .Child("users")
             .Child(playerId)
@@ -517,21 +547,25 @@ public class BaseManager : MonoBehaviour
 
                 // Force new username next time
                 PlayerPrefs.DeleteKey("username");
-                UsernameManager.ClearUsername(); // Use a method in UsernameManager
+                UsernameManager.ClearUsername();
 
-                // If user is on Tab1 => show prompt
                 var tm = FindObjectOfType<TabManager>();
                 if (tm != null && tm.CurrentTabIndex == 1)
                 {
-                    ShowBaseOnMap();
+                    ShowBaseOnMap(); // show prompt
                     tm.RefreshCurrentTabUI();
                 }
             });
     }
 
-    // ------------------------------------------
-    //  Upgrades
-    // ------------------------------------------
+    // ---------------------------
+    // Upgrades
+    // ---------------------------
+
+    /// <summary>
+    /// Spends "upgradeCost" points to increase base level by 1, health by 100. 
+    /// Saves new values in Firebase.
+    /// </summary>
     public void UpgradeBase()
     {
         int cost = upgradeCost;
@@ -543,25 +577,26 @@ public class BaseManager : MonoBehaviour
             return;
         }
 
-        // Subtract points
+        // Deduct points
         ScoreManager.Instance.AddPoints(-cost);
 
-        // Track how much we spent for refund
+        // Track for refunds if base removed
         totalScoreSpentOnUpgrades += cost;
 
         // Actually upgrade
         currentLevel += 1;
         currentHealth += 100;
 
-        // Update Firebase
-        DatabaseReference baseRef = FirebaseInit.DBReference
+        // Save new level/health in DB
+        var baseRef = FirebaseInit.DBReference
             .Child("users")
             .Child(playerId)
             .Child("base");
+
         baseRef.Child("level").SetValueAsync(currentLevel);
         baseRef.Child("health").SetValueAsync(currentHealth);
 
-        // Update local marker UI
+        // Update local marker if present
         if (currentBaseMarker)
         {
             var marker = currentBaseMarker.GetComponent<BaseMarker>();
@@ -578,9 +613,13 @@ public class BaseManager : MonoBehaviour
         Debug.Log($"[BaseManager] Base upgraded! Lvl={currentLevel}, HP={currentHealth}. Cost={cost}");
     }
 
-    // ------------------------------------------
-    //  Utility
-    // ------------------------------------------
+    // ---------------------------
+    // Utility
+    // ---------------------------
+
+    /// <summary>
+    /// Spawns (or repositions) the local base marker prefab at the given geo coords.
+    /// </summary>
     private void PlaceBaseMarker(Vector2d coords)
     {
         Vector3 wPos = map.GeoToWorldPosition(coords, true);
@@ -594,6 +633,9 @@ public class BaseManager : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Converts a screen position to lat/lon by raycasting against a plane at y=0.
+    /// </summary>
     private bool ScreenPositionToLatLon(Vector2 screenPos, out Vector2d latLon)
     {
         latLon = Vector2d.zero;
@@ -615,21 +657,28 @@ public class BaseManager : MonoBehaviour
         return false;
     }
 
+    /// <summary>
+    /// Displays a brief UI notification that the user destroyed an enemy base. 
+    /// Waits 3s, then hides.
+    /// </summary>
     private void ShowDestroyBasePrompt()
     {
-        // A quick approach is to create a small UI popup or toast at bottom of screen.
-        // For example:
         Debug.Log("You destroyed an enemy base! Base fully restored.");
-    
         string message = "You destroyed an enemy base! Base fully restored.";
         StartCoroutine(DisplayPrompt(message, 3f));
     }
 
     private IEnumerator DisplayPrompt(string message, float duration)
     {
-        healthRestored.text = message;
-        healthRestored.gameObject.SetActive(true);
+        if (healthRestored != null)
+        {
+            healthRestored.text = message;
+            healthRestored.gameObject.SetActive(true);
+        }
         yield return new WaitForSeconds(duration);
-        healthRestored.gameObject.SetActive(false);
+        if (healthRestored != null)
+        {
+            healthRestored.gameObject.SetActive(false);
+        }
     }
 }

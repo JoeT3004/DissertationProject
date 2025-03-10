@@ -1,9 +1,15 @@
-using UnityEngine;
+using System.Collections;
 using System.Collections.Generic;
-using Mapbox.Utils;
+using UnityEngine;
 using Mapbox.Unity.Map;
 using Mapbox.Unity.Location;
+using Mapbox.Utils;
 
+/// <summary>
+/// Manages the spawning of Points of Interest (POIs) from a JSON file,
+/// placing them on the map, and allowing the user to 'collect' them 
+/// by being within a certain distance (collectionDistanceMeters).
+/// </summary>
 public class POIManager : MonoBehaviour
 {
     [Header("JSON Input")]
@@ -19,19 +25,19 @@ public class POIManager : MonoBehaviour
     [Tooltip("Distance in METERS to collect a POI")]
     [SerializeField] private float collectionDistanceMeters = 10f;
 
-    // Data parsed from the JSON (OSMDataModel.cs types)
+    // Deserialized from poiJson (RootObject/Element from your OSMDataModel)
     private RootObject _poiData;
     private List<Element> _allPOIs = new List<Element>();
 
-    // All instantiated POIs
+    // Instantiated POI GameObjects
     private List<GameObject> _spawnedPOIs = new List<GameObject>();
 
-    // Flag so we spawn POIs once after map init
+    // True once we spawn POIs the first time
     private bool _hasSpawnedPOIs = false;
 
-    // --------------------------------------------------
-    // 1. Parse JSON in Awake
-    // --------------------------------------------------
+    /// <summary>
+    /// Parse the JSON once in Awake to fill _allPOIs.
+    /// </summary>
     private void Awake()
     {
         if (poiJson == null)
@@ -40,37 +46,30 @@ public class POIManager : MonoBehaviour
             return;
         }
 
-        // Deserialize JSON
         string jsonString = poiJson.text;
         _poiData = JsonUtility.FromJson<RootObject>(jsonString);
 
         if (_poiData != null && _poiData.elements != null)
         {
             _allPOIs.AddRange(_poiData.elements);
-            Debug.Log($"Parsed {_allPOIs.Count} POIs from JSON.");
+            Debug.Log($"[POIManager] Parsed {_allPOIs.Count} POIs from JSON.");
         }
         else
         {
-            Debug.LogError("Failed to parse JSON or no POI elements found.");
+            Debug.LogError("[POIManager] Failed to parse JSON or no POI elements found.");
         }
     }
 
-    // --------------------------------------------------
-    // 2. Subscribe to map events
-    // --------------------------------------------------
     private void OnEnable()
     {
         if (map != null)
         {
-            // Called once when map finishes its initial load
             map.OnInitialized += Map_OnInitialized;
-
-            // Called whenever the map re-centers or updates
             map.OnUpdated += Map_OnUpdated;
         }
         else
         {
-            Debug.LogError("Map reference is missing in POIManager!");
+            Debug.LogError("[POIManager] Map reference is missing!");
         }
     }
 
@@ -83,61 +82,23 @@ public class POIManager : MonoBehaviour
         }
     }
 
-    // --------------------------------------------------
-    // 3. Spawn POIs once the map has completed initialization
-    // --------------------------------------------------
+    /// <summary>
+    /// Once the map is initialized, we spawn all POIs if we haven't yet.
+    /// </summary>
     private void Map_OnInitialized()
     {
         if (!_hasSpawnedPOIs)
         {
             _hasSpawnedPOIs = true;
-            Debug.Log("Map initialized. Spawning POIs now...");
+            Debug.Log("[POIManager] Map initialized. Spawning POIs...");
             SpawnAllPOIs();
         }
     }
 
-    private void SpawnAllPOIs()
-    {
-        if (_allPOIs.Count == 0)
-        {
-            Debug.LogWarning("No POIs to spawn.");
-            return;
-        }
-
-        if (map == null)
-        {
-            Debug.LogError("AbstractMap reference is missing.");
-            return;
-        }
-
-        foreach (var poi in _allPOIs)
-        {
-            Vector2d latLon = new Vector2d(poi.lat, poi.lon);
-
-            // Convert lat/lon to an initial world position
-            Vector3 worldPos = map.GeoToWorldPosition(latLon);
-            //Debug.Log($"Spawning POI: lat/lon {latLon} => worldPos {worldPos}");
-
-            // Create the POI object in the scene
-            GameObject newPOI = Instantiate(poiPrefab, worldPos, Quaternion.identity);
-
-            // Store the lat/lon & any data in the POIBehaviour script
-            POIBehaviour poiBehaviour = newPOI.GetComponent<POIBehaviour>();
-            if (poiBehaviour != null)
-            {
-                poiBehaviour.latLon = latLon;
-                poiBehaviour.Id = poi.id;
-                poiBehaviour.Amenity = poi.tags.amenity;
-                poiBehaviour.Ref = poi.tags.@ref;
-            }
-
-            _spawnedPOIs.Add(newPOI);
-        }
-    }
-
-    // --------------------------------------------------
-    // 4. Reposition POIs on every map update
-    // --------------------------------------------------
+    /// <summary>
+    /// Called when the map is updated (pans, zooms, re-centers, etc.).
+    /// Repositions each POI in world space.
+    /// </summary>
     private void Map_OnUpdated()
     {
         foreach (var poiObject in _spawnedPOIs)
@@ -153,23 +114,56 @@ public class POIManager : MonoBehaviour
         }
     }
 
-    // --------------------------------------------------
-    // 5. Distance-based collection using GEO DISTANCE
-    // --------------------------------------------------
+    /// <summary>
+    /// Instantiates POI prefabs at their lat/lon positions, stored in _allPOIs.
+    /// </summary>
+    private void SpawnAllPOIs()
+    {
+        if (_allPOIs.Count == 0)
+        {
+            Debug.LogWarning("[POIManager] No POIs to spawn.");
+            return;
+        }
+        if (map == null)
+        {
+            Debug.LogError("[POIManager] AbstractMap reference is missing.");
+            return;
+        }
+
+        foreach (var poi in _allPOIs)
+        {
+            Vector2d latLon = new Vector2d(poi.lat, poi.lon);
+            Vector3 worldPos = map.GeoToWorldPosition(latLon);
+
+            GameObject newPOI = Instantiate(poiPrefab, worldPos, Quaternion.identity);
+            POIBehaviour poiBehaviour = newPOI.GetComponent<POIBehaviour>();
+            if (poiBehaviour != null)
+            {
+                poiBehaviour.latLon = latLon;
+                poiBehaviour.Id = poi.id;
+                poiBehaviour.Amenity = poi.tags.amenity;
+                poiBehaviour.Ref = poi.tags.@ref;
+            }
+
+            _spawnedPOIs.Add(newPOI);
+        }
+    }
+
+    /// <summary>
+    /// Each frame, we check the player's location vs. each POI to see if they're 
+    /// within 'collectionDistanceMeters'. If so, we award points and remove the POI.
+    /// </summary>
     private void Update()
     {
-        // 1. Get the player's current lat/lon from the default Location Provider
         var locationProvider = LocationProviderFactory.Instance.DefaultLocationProvider;
         if (locationProvider == null) return;
 
-        //implementation of this varies on mapbox version
         var currentLocation = locationProvider.CurrentLocation;
         double playerLat = currentLocation.LatitudeLongitude.x;
         double playerLon = currentLocation.LatitudeLongitude.y;
         Vector2d playerLatLon = new Vector2d(playerLat, playerLon);
 
-
-        // 2. Check each POI for real-world distance
+        // Check each POI
         for (int i = _spawnedPOIs.Count - 1; i >= 0; i--)
         {
             GameObject poiObj = _spawnedPOIs[i];
@@ -178,48 +172,20 @@ public class POIManager : MonoBehaviour
             POIBehaviour poiBehaviour = poiObj.GetComponent<POIBehaviour>();
             if (poiBehaviour == null) continue;
 
-            double distMeters = GetHaversineDistance(playerLatLon, poiBehaviour.latLon);
-            //Debug.Log($"Distance to POI {poiBehaviour.Id} = {distMeters} m");
+            // Use GeoUtils instead of local Haversine
+            double distMeters = GeoUtils.HaversineDistance(playerLatLon, poiBehaviour.latLon);
 
-            // If within collectionDistanceMeters, collect it
             if (distMeters < collectionDistanceMeters)
             {
-                Debug.Log($"Collected POI {poiBehaviour.Id} at distance {distMeters} m");
-                
-                // (Optional) Score
+                Debug.Log($"Collected POI {poiBehaviour.Id} at distance {distMeters:F1} m");
+
+                // Award some points
                 ScoreManager.Instance.AddPoints(10);
 
-                // Remove the POI
+                // Remove the POI from scene and list
                 Destroy(poiObj);
                 _spawnedPOIs.RemoveAt(i);
             }
         }
-    }
-
-    // --------------------------------------------------
-    // 6. Haversine distance in meters
-    // --------------------------------------------------
-    private double GetHaversineDistance(Vector2d coord1, Vector2d coord2)
-    {
-        // Earth radius in meters
-        const double R = 6371000.0;
-
-        double lat1Rad = coord1.x * Mathf.Deg2Rad;
-        double lon1Rad = coord1.y * Mathf.Deg2Rad;
-        double lat2Rad = coord2.x * Mathf.Deg2Rad;
-        double lon2Rad = coord2.y * Mathf.Deg2Rad;
-
-        double dLat = lat2Rad - lat1Rad;
-        double dLon = lon2Rad - lon1Rad;
-
-        double a = Mathf.Sin((float)(dLat / 2.0)) * Mathf.Sin((float)(dLat / 2.0)) +
-                   Mathf.Cos((float)lat1Rad) * Mathf.Cos((float)lat2Rad) *
-                   Mathf.Sin((float)(dLon / 2.0)) * Mathf.Sin((float)(dLon / 2.0));
-
-        double c = 2.0 * Mathf.Atan2(Mathf.Sqrt((float)a), Mathf.Sqrt((float)(1.0 - a)));
-
-        // Distance in meters
-        double distance = R * c;
-        return distance;
     }
 }

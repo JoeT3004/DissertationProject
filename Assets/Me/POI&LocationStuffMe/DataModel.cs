@@ -1,7 +1,9 @@
-using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
+using System;
 
+/// <summary>
+/// Data structures for deserializing the OSM-based JSON for POIs. 
+/// Contains a RootObject with "elements", each an Element with lat, lon, etc.
+/// </summary>
 [System.Serializable]
 public class RootObject
 {
@@ -35,6 +37,5 @@ public class Tags
     public string amenity;
     public string @ref;
     public string brand;
-    // Add more fields if you need them from the JSON
+    // Add more fields if needed
 }
-

@@ -1,14 +1,14 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using Firebase;
 using Firebase.Database;
 using Firebase.Extensions;
 
+/// <summary>
+/// Initializes Firebase and creates a static DatabaseReference for the entire app to use.
+/// Also sets IsFirebaseReady once everything is loaded.
+/// </summary>
 public class FirebaseInit : MonoBehaviour
 {
-
-
     public static FirebaseApp App;
     public static DatabaseReference DBReference;
     public static bool IsFirebaseReady { get; private set; } = false;
@@ -18,6 +18,9 @@ public class FirebaseInit : MonoBehaviour
         InitializeFirebase();
     }
 
+    /// <summary>
+    /// Checks and fixes Firebase dependencies, then sets up App and DBReference if successful.
+    /// </summary>
     private void InitializeFirebase()
     {
         FirebaseApp.CheckAndFixDependenciesAsync().ContinueWithOnMainThread(task =>
@@ -26,20 +29,17 @@ public class FirebaseInit : MonoBehaviour
             if (dependencyStatus == DependencyStatus.Available)
             {
                 App = FirebaseApp.DefaultInstance;
-
-                // Log the URL to check if it’s null or empty
                 Debug.Log("DEBUG: Current DatabaseURL is: " + App.Options.DatabaseUrl);
 
                 DBReference = FirebaseDatabase.DefaultInstance.RootReference;
                 IsFirebaseReady = true;
 
-                Debug.Log("Firebase is ready!");
+                Debug.Log("[FirebaseInit] Firebase is ready!");
             }
             else
             {
-                Debug.LogError($"Could not resolve all Firebase dependencies: {dependencyStatus}");
+                Debug.LogError($"[FirebaseInit] Could not resolve all Firebase dependencies: {dependencyStatus}");
             }
         });
     }
-
 }

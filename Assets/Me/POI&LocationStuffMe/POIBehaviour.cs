@@ -1,19 +1,14 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
-
 using Mapbox.Utils;
 
+/// <summary>
+/// Attached to each spawned POI GameObject to store lat/lon (for repositioning) 
+/// and additional metadata from the JSON (amenity, ref, etc.).
+/// </summary>
 public class POIBehaviour : MonoBehaviour
 {
-    // This will store the latitude/longitude for this POI.
-    // We'll use it to recalculate world positions whenever the map moves or re-centers.
     public Vector2d latLon;
-
-    // Additional metadata from the JSON (optional)
     public long Id;
     public string Amenity;
     public string Ref;
 }
-
-

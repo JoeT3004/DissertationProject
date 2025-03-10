@@ -2,28 +2,32 @@ using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 
+/// <summary>
+/// UI Controller for an "enemy" base marker (health bar, name, etc.).
+/// Renders above the base in the world space.
+/// </summary>
 public class BaseUIController : MonoBehaviour
 {
     [SerializeField] private TMP_Text usernameText;
-    [SerializeField] private Slider healthSlider; // Slider component
-    [SerializeField] private TMP_Text healthText;   // Text element placed inside the slider
+    [SerializeField] private Slider healthSlider;
+    [SerializeField] private TMP_Text healthText;
 
     private int maxHealth = 100;
 
     private void Start()
     {
-        // For a top-down view, offset the canvas upward relative to the base.
+        // Position the UI above the base
         transform.localPosition = new Vector3(0f, 2.5f, 0f);
         transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
     }
 
     /// <summary>
-    /// Initializes the UI with the username, current health, and maximum health.
+    /// Initializes the UI fields with username, current health, and max health.
     /// </summary>
     public void Initialize(string username, int currentHealth, int maxHealth)
     {
         this.maxHealth = maxHealth;
-        if (healthSlider != null)
+        if (healthSlider)
         {
             healthSlider.minValue = 0;
             healthSlider.maxValue = maxHealth;
@@ -33,7 +37,7 @@ public class BaseUIController : MonoBehaviour
     }
 
     /// <summary>
-    /// Updates the displayed username, slider value, and health text.
+    /// Updates the displayed username, health slider, and health text.
     /// </summary>
     public void UpdateUI(string username, int currentHealth)
     {

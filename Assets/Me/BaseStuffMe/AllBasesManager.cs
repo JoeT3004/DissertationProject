@@ -6,6 +6,11 @@ using Firebase.Extensions;
 using Mapbox.Unity.Map;
 using Mapbox.Utils;
 
+/// <summary>
+/// Manages the spawning of "other users'" bases on the map by listening to "users" data in Firebase.
+/// Skips the local user (doesn't show an "enemy" marker for them).
+/// Stores usernames and coordinates for retrieval (e.g., AttackManager).
+/// </summary>
 public class AllBasesManager : MonoBehaviour
 {
     public static AllBasesManager Instance { get; private set; }
@@ -13,13 +18,13 @@ public class AllBasesManager : MonoBehaviour
     [SerializeField] private AbstractMap map;
     [SerializeField] private GameObject otherUserMarkerPrefab;
 
-    // Positions of each user's base
+    // Stores each user's base location by userId
     private Dictionary<string, Vector2d> markerCoordinates = new Dictionary<string, Vector2d>();
 
-    // Dictionary for storing each user's username
+    // Stores usernames by userId
     private Dictionary<string, string> userNames = new Dictionary<string, string>();
 
-    // For each user, a spawned "enemy" marker (non-local user)
+    // Tracks each spawned "enemy" marker for other users
     private Dictionary<string, GameObject> spawnedMarkers = new Dictionary<string, GameObject>();
 
     private void Awake()
@@ -28,9 +33,11 @@ public class AllBasesManager : MonoBehaviour
         else Destroy(gameObject);
     }
 
+    /// <summary>
+    /// Waits for Firebase, then subscribes to changes under "users".
+    /// </summary>
     private IEnumerator Start()
     {
-        // Wait until Firebase is ready
         while (!FirebaseInit.IsFirebaseReady)
             yield return null;
 
@@ -44,7 +51,6 @@ public class AllBasesManager : MonoBehaviour
             }
         }
 
-        // Listen for changes under "users"
         FirebaseInit.DBReference
             .Child("users")
             .ValueChanged += HandleUsersValueChanged;
@@ -58,6 +64,10 @@ public class AllBasesManager : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Called whenever the "users" node in Firebase changes. 
+    /// Rebuilds markers for all bases in the scene, skipping the local user's base marker.
+    /// </summary>
     private void HandleUsersValueChanged(object sender, ValueChangedEventArgs e)
     {
         if (!map)
@@ -85,11 +95,8 @@ public class AllBasesManager : MonoBehaviour
         }
 
         Debug.Log("[AllBasesManager] Rebuilding markers from 'users' snapshot...");
+        ClearAllMarkers(); // remove old
 
-        // Clear old markers first
-        ClearAllMarkers();
-
-        // Identify local user ID (to skip spawning a marker for ourselves)
         string localUserId = PlayerPrefs.GetString("playerId");
 
         // For each user in 'users'
@@ -97,15 +104,10 @@ public class AllBasesManager : MonoBehaviour
         {
             string userId = userSnap.Key;
 
-            // Attempt to read their "base" node
+            // Check for "base" node
             var baseSnap = userSnap.Child("base");
-            if (!baseSnap.Exists)
-            {
-                // This user has no base
-                continue;
-            }
+            if (!baseSnap.Exists) continue; // no base
 
-            // Make sure lat/lon exist
             if (!baseSnap.HasChild("latitude") || !baseSnap.HasChild("longitude"))
             {
                 Debug.LogWarning($"[AllBasesManager] Skipping user '{userId}' - no lat/long found.");
@@ -116,24 +118,19 @@ public class AllBasesManager : MonoBehaviour
             double lon = double.Parse(baseSnap.Child("longitude").Value.ToString());
             Vector2d coords = new Vector2d(lat, lon);
 
-            // Username
+            // Retrieve username, or "Unknown"
             string username = baseSnap.HasChild("username")
                 ? baseSnap.Child("username").Value.ToString()
                 : "Unknown";
 
-            // Always store them in dictionaries so AttackManager can retrieve user’s name
+            // Store in dictionaries
             userNames[userId] = username;
             markerCoordinates[userId] = coords;
 
             Debug.Log($"[AllBasesManager] Stored user='{userId}', username='{username}', lat={lat}, lon={lon}.");
 
-            // Decide if we spawn a marker for this user
-            // We skip the local user, so we only show "enemy" markers
-            if (userId == localUserId)
-            {
-                // Local user => skip spawning 'enemy' marker
-                continue;
-            }
+            // Skip local user's base => don't spawn an "enemy" marker
+            if (userId == localUserId) continue;
 
             // For an enemy user, proceed to spawn marker
             int enemyHealth = baseSnap.HasChild("health")
@@ -158,6 +155,9 @@ public class AllBasesManager : MonoBehaviour
         Debug.Log($"[AllBasesManager] Done building markers. userNames.Count={userNames.Count}");
     }
 
+    /// <summary>
+    /// Called after all Update() calls, repositions markers if the map or camera has moved.
+    /// </summary>
     private void LateUpdate()
     {
         // Update positions as map moves/zooms
@@ -174,6 +174,9 @@ public class AllBasesManager : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Destroys all "enemy base" markers and clears dictionaries.
+    /// </summary>
     private void ClearAllMarkers()
     {
         foreach (var kvp in spawnedMarkers)
@@ -192,12 +195,11 @@ public class AllBasesManager : MonoBehaviour
     {
         if (markerCoordinates.TryGetValue(userId, out Vector2d coords))
             return coords;
-
         return null;
     }
 
     /// <summary>
-    /// Returns the username for the given user, or "Unknown" if not found or not in DB.
+    /// Returns the username for the given user, or "Unknown" if not found or missing in DB.
     /// </summary>
     public string GetUsernameOfUser(string userId)
     {

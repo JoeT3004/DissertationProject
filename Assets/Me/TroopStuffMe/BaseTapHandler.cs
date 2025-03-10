@@ -1,6 +1,10 @@
 using UnityEngine;
 using UnityEngine.EventSystems;
 
+/// <summary>
+/// Handles pointer clicks on an enemy base marker, telling AttackManager to open the troop selection UI.
+/// Skips if user taps their own base, doesn't have a base, or if they're on the "Base" tab.
+/// </summary>
 [RequireComponent(typeof(Collider))]
 public class BaseTapHandler : MonoBehaviour, IPointerClickHandler
 {
@@ -11,12 +15,12 @@ public class BaseTapHandler : MonoBehaviour, IPointerClickHandler
         baseMarker = GetComponent<BaseMarker>();
     }
 
-        public void OnPointerClick(PointerEventData eventData)
+    /// <summary>
+    /// Called by Unity when the user clicks on this collider. 
+    /// It handles logic to open the Attack UI, re-center the map, etc.
+    /// </summary>
+    public void OnPointerClick(PointerEventData eventData)
     {
-
-
-
-
         Debug.Log("BaseTapHandler.OnPointerClick => Called. Attempting to open TroopSelectPanel.");
         if (baseMarker == null) return;
 
@@ -27,7 +31,7 @@ public class BaseTapHandler : MonoBehaviour, IPointerClickHandler
             return;
         }
 
-        // Also skip if this is the local player's base
+        // Skip if local user's base
         string localUserId = PlayerPrefs.GetString("playerId");
         if (enemyOwnerId == localUserId)
         {
@@ -35,14 +39,14 @@ public class BaseTapHandler : MonoBehaviour, IPointerClickHandler
             return;
         }
 
-        // if user has no base, skip
+        // Skip if user has no base
         if (!BaseManager.Instance.HasBase())
         {
             Debug.Log("User has no base, skipping troop panel + re-center.");
             return;
         }
 
-        // Also skip if we’re on tab #1 (Base Tab)
+        // Skip if we’re on tab #1 (Base tab)
         var tm = FindObjectOfType<TabManager>();
         if (tm != null && tm.CurrentTabIndex == 1)
         {
@@ -52,8 +56,7 @@ public class BaseTapHandler : MonoBehaviour, IPointerClickHandler
 
         Debug.Log("BaseTapHandler: Tapped base with PlayerId=" + baseMarker.PlayerId);
 
-
-        // If we get this far, open the troop UI
+        // If valid, open the troop selection UI
         AttackManager.Instance.OpenTroopSelectionUI(
             baseMarker.PlayerId,
             baseMarker.Username,
@@ -61,14 +64,11 @@ public class BaseTapHandler : MonoBehaviour, IPointerClickHandler
             baseMarker.Level
         );
 
-        // Re-center if the coords exist
+        // Re-center map if we have coords
         var enemyCoords = AllBasesManager.Instance.GetBaseCoordinates(enemyOwnerId);
         if (enemyCoords != null)
         {
             BaseManager.Instance.ShowEnemyBaseOnMap(enemyCoords.Value);
         }
     }
-
-
 }
-
