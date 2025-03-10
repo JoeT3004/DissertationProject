@@ -36,7 +36,6 @@ public class BaseManager : MonoBehaviour
 
     private int currentHealth;
     private int currentLevel;
-    private int totalScoreSpentOnUpgrades;
 
     // Public properties
     public bool HasBase() => hasBase;
@@ -512,9 +511,14 @@ public class BaseManager : MonoBehaviour
         }
 
         // Refund all upgrade cost spent
-        ScoreManager.Instance.AddPoints(totalScoreSpentOnUpgrades);
-        Debug.Log($"[BaseManager] Refunded {totalScoreSpentOnUpgrades} points.");
-        totalScoreSpentOnUpgrades = 0;
+     //Calculates a refund based on current base level
+
+        Debug.LogWarning(currentLevel);
+        int refund = (currentLevel - 1) * upgradeCost / 2;
+        ScoreManager.Instance.AddPoints(refund);
+
+        Debug.LogWarning($"[BaseManager] Refunded {refund} points for level={currentLevel} base.");
+
 
         // Remove from DB
         FirebaseInit.DBReference
@@ -577,11 +581,9 @@ public class BaseManager : MonoBehaviour
             return;
         }
 
-        // Deduct points
+        // Subtract points
         ScoreManager.Instance.AddPoints(-cost);
 
-        // Track for refunds if base removed
-        totalScoreSpentOnUpgrades += cost;
 
         // Actually upgrade
         currentLevel += 1;
@@ -596,7 +598,7 @@ public class BaseManager : MonoBehaviour
         baseRef.Child("level").SetValueAsync(currentLevel);
         baseRef.Child("health").SetValueAsync(currentHealth);
 
-        // Update local marker if present
+        // Update marker if present
         if (currentBaseMarker)
         {
             var marker = currentBaseMarker.GetComponent<BaseMarker>();
@@ -606,12 +608,13 @@ public class BaseManager : MonoBehaviour
             }
         }
 
-        // Refresh Tab UI
+        // Refresh UI
         var tm = FindObjectOfType<TabManager>();
         if (tm != null) tm.RefreshCurrentTabUI();
 
         Debug.Log($"[BaseManager] Base upgraded! Lvl={currentLevel}, HP={currentHealth}. Cost={cost}");
     }
+
 
     // ---------------------------
     // Utility
